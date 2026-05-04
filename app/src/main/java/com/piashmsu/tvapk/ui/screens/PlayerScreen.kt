@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,13 +25,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.BrightnessMedium
+import androidx.compose.material.icons.outlined.ClosedCaption
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.FastRewind
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.DropdownMenu
@@ -62,10 +68,14 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.piashmsu.tvapk.data.MovieProgress
 import com.piashmsu.tvapk.data.PlaybackTarget
 import com.piashmsu.tvapk.data.PlaybackTargetHolder
 import com.piashmsu.tvapk.data.RecentChannel
@@ -74,6 +84,7 @@ import com.piashmsu.tvapk.record.RecordingArgs
 import com.piashmsu.tvapk.record.RecordingService
 import com.piashmsu.tvapk.record.RecordingState
 import com.piashmsu.tvapk.ui.AppViewModel
+import com.piashmsu.tvapk.ui.PipController
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -98,6 +109,9 @@ private val SLEEP_OPTIONS = listOf(
     SleepOption("60 min", 60),
     SleepOption("90 min", 90),
 )
+
+private val SPEED_OPTIONS = listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+private val SUBTITLE_SIZES = listOf("S" to 0.75f, "M" to 1.0f, "L" to 1.5f)
 
 @Composable
 fun PlayerScreen(onBack: () -> Unit) {
@@ -126,10 +140,38 @@ fun PlayerScreen(onBack: () -> Unit) {
     val referer = (current as? PlaybackTarget.LiveChannel)?.channel?.httpReferer
     val headers = (current as? PlaybackTarget.LiveChannel)?.channel?.httpHeaders.orEmpty()
 
-    val player = remember(current) {
+    val movieId = (current as? PlaybackTarget.VideoOnDemand)?.movie?.id
+    val savedProgress = movieId?.let { id ->
+        vm.movieProgress.collectAsState().value[id]
+    }
+
+    var subtitleUrl by remember(current) { mutableStateOf<String?>(null) }
+    var subtitleSizeIndex by remember { mutableStateOf(1) }
+
+    val player = remember(current, subtitleUrl) {
+        val mediaBuilder = MediaItem.Builder().setUri(current.streamUrl)
+        if (!subtitleUrl.isNullOrBlank()) {
+            val subUri = android.net.Uri.parse(subtitleUrl)
+            val mime = when {
+                subtitleUrl!!.endsWith(".vtt", ignoreCase = true) -> MimeTypes.TEXT_VTT
+                else -> MimeTypes.APPLICATION_SUBRIP
+            }
+            mediaBuilder.setSubtitleConfigurations(
+                listOf(
+                    MediaItem.SubtitleConfiguration.Builder(subUri)
+                        .setMimeType(mime)
+                        .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                        .build(),
+                ),
+            )
+        }
         buildPlayerForUrl(context, current.streamUrl, ua, referer, headers).apply {
-            setMediaItem(MediaItem.fromUri(current.streamUrl))
+            setMediaItem(mediaBuilder.build())
             prepare()
+            // Resume movies at saved position.
+            if (savedProgress != null && savedProgress.positionMs > 0L) {
+                seekTo(savedProgress.positionMs)
+            }
             playWhenReady = true
         }
     }
@@ -141,6 +183,13 @@ fun PlayerScreen(onBack: () -> Unit) {
     var sleepDeadlineMs by remember { mutableLongStateOf(0L) }
     var sleepRemaining by remember { mutableStateOf("") }
     var seekIndicator by remember { mutableStateOf<Pair<Boolean, Long>?>(null) }
+    var speedMenuOpen by remember { mutableStateOf(false) }
+    var playbackSpeed by remember { mutableStateOf(1.0f) }
+    var subtitleMenuOpen by remember { mutableStateOf(false) }
+    var brightnessOverlay by remember { mutableStateOf(0f) }  // 0..1 dim
+    var volumeIndicator by remember { mutableStateOf<Pair<Float, Long>?>(null) } // 0..1, last update
+    var brightnessIndicator by remember { mutableStateOf<Pair<Float, Long>?>(null) }
+    var dragOnRight by remember { mutableStateOf(false) }
 
     LaunchedEffect(current) {
         vm.prefs.setLastPlayed(current.title)
@@ -207,10 +256,39 @@ fun PlayerScreen(onBack: () -> Unit) {
             }
         }
         player.addListener(listener)
+        // Mark this screen as PiP-eligible while it's active so MainActivity
+        // enters PiP on Home press.
+        PipController.shouldEnterOnLeave = true
         onDispose {
+            // Persist movie position so the user can resume next time.
+            (current as? PlaybackTarget.VideoOnDemand)?.movie?.let { movie ->
+                val pos = player.currentPosition
+                val dur = player.duration.takeIf { it > 0L } ?: 0L
+                if (pos > 5_000L) {
+                    vm.saveMovieProgress(
+                        MovieProgress(
+                            movieId = movie.id,
+                            positionMs = pos,
+                            durationMs = dur,
+                            updatedAt = System.currentTimeMillis(),
+                        )
+                    )
+                }
+            }
+            PipController.shouldEnterOnLeave = false
             player.removeListener(listener)
             player.release()
         }
+    }
+
+    LaunchedEffect(volumeIndicator) {
+        if (volumeIndicator != null) { delay(900); volumeIndicator = null }
+    }
+    LaunchedEffect(brightnessIndicator) {
+        if (brightnessIndicator != null) { delay(900); brightnessIndicator = null }
+    }
+    LaunchedEffect(playbackSpeed, player) {
+        player.playbackParameters = PlaybackParameters(playbackSpeed)
     }
 
     val nowPlaying = (current as? PlaybackTarget.LiveChannel)?.let { lc ->
@@ -226,6 +304,14 @@ fun PlayerScreen(onBack: () -> Unit) {
     fun touch() {
         controlsVisible = true
         lastInteractionAt = System.currentTimeMillis()
+    }
+
+    val audioManager = remember(context) {
+        context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+    }
+    val maxVolume = remember(audioManager) {
+        audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC)
+            .coerceAtLeast(1)
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -250,6 +336,36 @@ fun PlayerScreen(onBack: () -> Unit) {
                             touch()
                         },
                     )
+                }
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onDragStart = { offset ->
+                            // Capture which half so the drag handler can update
+                            // brightness vs. volume consistently for this gesture.
+                            dragOnRight = offset.x > size.width / 2f
+                        },
+                        onVerticalDrag = { _, dragAmount ->
+                            // Negative = upward swipe (increase). Drag amount is
+                            // in pixels; normalize against view height.
+                            val delta = -dragAmount / size.height
+                            if (dragOnRight) {
+                                val cur = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC)
+                                val target = (cur + delta * maxVolume * 1.6f).toInt()
+                                    .coerceIn(0, maxVolume)
+                                audioManager.setStreamVolume(
+                                    android.media.AudioManager.STREAM_MUSIC,
+                                    target,
+                                    0,
+                                )
+                                volumeIndicator = (target.toFloat() / maxVolume) to System.currentTimeMillis()
+                            } else {
+                                brightnessOverlay = (brightnessOverlay + delta * 1.2f)
+                                    .coerceIn(0f, 0.85f)
+                                brightnessIndicator = brightnessOverlay to System.currentTimeMillis()
+                            }
+                            touch()
+                        },
+                    )
                 },
             factory = { ctx ->
                 PlayerView(ctx).apply {
@@ -263,6 +379,56 @@ fun PlayerScreen(onBack: () -> Unit) {
                 view.resizeMode = aspectMode.mode
             },
         )
+
+        // Software brightness: a dim overlay that darkens the player area
+        // when the user swipes down on the left half. Cleaner than touching
+        // window screen brightness on every device.
+        if (brightnessOverlay > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = brightnessOverlay)),
+            )
+        }
+
+        volumeIndicator?.let { (level, _) ->
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(horizontal = 36.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xCC0B0E22))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.VolumeUp, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Volume ${(level * 100).toInt()}%",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
+        brightnessIndicator?.let { (level, _) ->
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(horizontal = 36.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xCC0B0E22))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.BrightnessMedium, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Brightness ${(100 - level * 100).toInt()}%",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
 
         seekIndicator?.let { (forward, _) ->
             Box(
@@ -377,6 +543,95 @@ fun PlayerScreen(onBack: () -> Unit) {
                         ),
                     ) {
                         Icon(Icons.Outlined.AspectRatio, contentDescription = "Aspect ratio")
+                    }
+                    Spacer(Modifier.size(6.dp))
+
+                    Box {
+                        FilledTonalIconButton(
+                            onClick = { speedMenuOpen = true; touch() },
+                            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = if (playbackSpeed != 1.0f) MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+                                    else Color(0x99000000),
+                                contentColor = Color.White,
+                            ),
+                        ) {
+                            Icon(Icons.Outlined.Speed, contentDescription = "Playback speed")
+                        }
+                        DropdownMenu(
+                            expanded = speedMenuOpen,
+                            onDismissRequest = { speedMenuOpen = false },
+                        ) {
+                            SPEED_OPTIONS.forEach { speed ->
+                                DropdownMenuItem(
+                                    text = { Text("${speed}x") },
+                                    onClick = {
+                                        playbackSpeed = speed
+                                        speedMenuOpen = false
+                                        touch()
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.size(6.dp))
+
+                    if (current is PlaybackTarget.VideoOnDemand) {
+                        Box {
+                            FilledTonalIconButton(
+                                onClick = { subtitleMenuOpen = true; touch() },
+                                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = if (!subtitleUrl.isNullOrBlank()) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
+                                        else Color(0x99000000),
+                                    contentColor = Color.White,
+                                ),
+                            ) {
+                                Icon(Icons.Outlined.ClosedCaption, contentDescription = "Subtitles")
+                            }
+                            DropdownMenu(
+                                expanded = subtitleMenuOpen,
+                                onDismissRequest = { subtitleMenuOpen = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Off") },
+                                    onClick = {
+                                        subtitleUrl = null
+                                        subtitleMenuOpen = false
+                                        touch()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Subtitle from URL...") },
+                                    onClick = {
+                                        // Attach the movie's stream URL with a
+                                        // ".vtt"/".srt" sibling — simplest
+                                        // convention; users can also configure
+                                        // a global subtitle URL in settings.
+                                        val guess = current.streamUrl.substringBeforeLast('.') + ".vtt"
+                                        subtitleUrl = guess
+                                        subtitleMenuOpen = false
+                                        touch()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Caption size: ${SUBTITLE_SIZES[subtitleSizeIndex].first}") },
+                                    onClick = {
+                                        subtitleSizeIndex = (subtitleSizeIndex + 1) % SUBTITLE_SIZES.size
+                                        touch()
+                                    },
+                                )
+                            }
+                        }
+                        Spacer(Modifier.size(6.dp))
+                    }
+
+                    FilledTonalIconButton(
+                        onClick = { PipController.enterNow(); touch() },
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(
+                            containerColor = Color(0x99000000),
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Icon(Icons.Outlined.PictureInPictureAlt, contentDescription = "Picture in Picture")
                     }
                     Spacer(Modifier.size(6.dp))
 

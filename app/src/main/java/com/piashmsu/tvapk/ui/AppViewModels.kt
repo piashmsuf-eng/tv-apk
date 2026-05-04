@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.piashmsu.tvapk.TvApkApp
 import com.piashmsu.tvapk.data.AppContainer
 import com.piashmsu.tvapk.data.AppPrefs
+import com.piashmsu.tvapk.data.AppTheme
 import com.piashmsu.tvapk.data.ChannelRepository
 import com.piashmsu.tvapk.data.EpgRepository
+import com.piashmsu.tvapk.data.MovieProgress
 import com.piashmsu.tvapk.data.MovieRepository
 import com.piashmsu.tvapk.data.PlaylistSource
 import com.piashmsu.tvapk.data.RecentChannel
@@ -36,6 +38,12 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
     val recents = prefs.recents
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val movieFavorites = prefs.movieFavorites
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+    val movieProgress = prefs.movieProgress
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+    val appTheme = prefs.appTheme
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AppTheme.System)
 
     val channelState = channelRepo.state
     val movieState = movieRepo.state
@@ -92,6 +100,22 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
 
     fun toggleFavorite(channelId: String) {
         viewModelScope.launch { prefs.toggleFavorite(channelId) }
+    }
+
+    fun toggleMovieFavorite(movieId: String) {
+        viewModelScope.launch { prefs.toggleMovieFavorite(movieId) }
+    }
+
+    fun saveMovieProgress(progress: MovieProgress) {
+        viewModelScope.launch { prefs.saveMovieProgress(progress) }
+    }
+
+    fun clearMovieProgress(movieId: String) {
+        viewModelScope.launch { prefs.clearMovieProgress(movieId) }
+    }
+
+    fun setAppTheme(theme: AppTheme) {
+        viewModelScope.launch { prefs.setAppTheme(theme) }
     }
 
     fun pushRecent(entry: RecentChannel) {

@@ -96,6 +96,32 @@ data class RecentChannel(
     val timestamp: Long,
 )
 
+/** Resume position + duration for a single movie. */
+data class MovieProgress(
+    val movieId: String,
+    val positionMs: Long,
+    val durationMs: Long,
+    val updatedAt: Long,
+) {
+    val fraction: Float
+        get() = if (durationMs <= 0L) 0f
+        else (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
+
+    val isInProgress: Boolean
+        get() = positionMs > 5_000L && (durationMs <= 0L || positionMs < durationMs - 5_000L)
+}
+
+/** Persisted user choice for the app theme. */
+enum class AppTheme(val label: String) {
+    System("Follow system"),
+    Light("Light"),
+    Dark("Dark");
+
+    companion object {
+        fun fromKey(key: String?): AppTheme = values().firstOrNull { it.name == key } ?: System
+    }
+}
+
 /** Persistent setting for the periodic playlist refresh. */
 enum class RefreshInterval(val hours: Int, val label: String) {
     Off(0, "Off"),

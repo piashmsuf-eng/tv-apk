@@ -38,6 +38,9 @@ class AppPrefs(private val context: Context) {
         val REFRESH_INTERVAL_HOURS = intPreferencesKey("refresh_interval_hours")
         val LAST_AUTO_REFRESH = stringPreferencesKey("last_auto_refresh")
         val DEFAULTS_SEEDED = booleanPreferencesKey("defaults_seeded")
+        val MOVIE_FAVORITES = stringPreferencesKey("favorite_movie_ids")
+        val MOVIE_PROGRESS = stringPreferencesKey("movie_progress_json")
+        val APP_THEME = stringPreferencesKey("app_theme")
     }
 
     val playlistSources: Flow<List<PlaylistSource>> = context.dataStore.data.map { prefs ->
@@ -86,6 +89,22 @@ class AppPrefs(private val context: Context) {
 
     val lastAutoRefresh: Flow<String> = context.dataStore.data.map {
         it[Keys.LAST_AUTO_REFRESH].orEmpty()
+    }
+
+    val movieFavorites: Flow<Set<String>> = context.dataStore.data.map {
+        it[Keys.MOVIE_FAVORITES].orEmpty()
+            .split('\n')
+            .map { id -> id.trim() }
+            .filter { id -> id.isNotEmpty() }
+            .toSet()
+    }
+
+    val movieProgress: Flow<Map<String, MovieProgress>> = context.dataStore.data.map {
+        decodeMovieProgress(it[Keys.MOVIE_PROGRESS].orEmpty())
+    }
+
+    val appTheme: Flow<AppTheme> = context.dataStore.data.map {
+        AppTheme.fromKey(it[Keys.APP_THEME])
     }
 
     suspend fun setMovieCatalogUrl(url: String) =
@@ -216,6 +235,76 @@ class AppPrefs(private val context: Context) {
                 )
             }
         }.getOrDefault(emptyList())
+    }
+
+    suspend fun toggleMovieFavorite(movieId: String): Boolean {
+        var resulting = false
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.MOVIE_FAVORITES].orEmpty()
+                .split('\n')
+                .filter { it.isNotEmpty() }
+                .toMutableSet()
+            if (movieId in current) current -= movieId
+            else { current += movieId; resulting = true }
+            prefs[Keys.MOVIE_FAVORITES] = current.joinToString("\n")
+        }
+        return resulting
+    }
+
+    suspend fun saveMovieProgress(progress: MovieProgress) {
+        context.dataStore.edit { prefs ->
+            val map = decodeMovieProgress(prefs[Keys.MOVIE_PROGRESS].orEmpty()).toMutableMap()
+            map[progress.movieId] = progress
+            // Drop entries older than 60 days so the JSON blob doesn't grow
+            // forever on heavy users.
+            val cutoff = System.currentTimeMillis() - 60L * 24 * 3600 * 1000
+            val pruned = map.filterValues { it.updatedAt >= cutoff }
+            prefs[Keys.MOVIE_PROGRESS] = encodeMovieProgress(pruned)
+        }
+    }
+
+    suspend fun clearMovieProgress(movieId: String) {
+        context.dataStore.edit { prefs ->
+            val map = decodeMovieProgress(prefs[Keys.MOVIE_PROGRESS].orEmpty()).toMutableMap()
+            map.remove(movieId)
+            prefs[Keys.MOVIE_PROGRESS] = encodeMovieProgress(map)
+        }
+    }
+
+    suspend fun setAppTheme(theme: AppTheme) {
+        context.dataStore.edit { it[Keys.APP_THEME] = theme.name }
+    }
+
+    private fun encodeMovieProgress(map: Map<String, MovieProgress>): String {
+        val arr = JSONArray()
+        for ((id, p) in map) {
+            arr.put(
+                JSONObject().apply {
+                    put("id", id)
+                    put("position", p.positionMs)
+                    put("duration", p.durationMs)
+                    put("updated", p.updatedAt)
+                }
+            )
+        }
+        return arr.toString()
+    }
+
+    private fun decodeMovieProgress(json: String): Map<String, MovieProgress> {
+        if (json.isBlank()) return emptyMap()
+        return runCatching {
+            val arr = JSONArray(json)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val id = o.optString("id").ifBlank { return@mapNotNull null }
+                id to MovieProgress(
+                    movieId = id,
+                    positionMs = o.optLong("position"),
+                    durationMs = o.optLong("duration"),
+                    updatedAt = o.optLong("updated"),
+                )
+            }.toMap()
+        }.getOrDefault(emptyMap())
     }
 
     private fun encodeRecents(items: List<RecentChannel>): String {

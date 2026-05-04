@@ -11,8 +11,8 @@ android {
         applicationId = "com.piashmsu.tvapk"
         minSdk = 23
         targetSdk = 34
-        versionCode = 5
-        versionName = "4.1-vibe"
+        versionCode = 6
+        versionName = "5.0-cinema"
 
         vectorDrawables {
             useSupportLibrary = true

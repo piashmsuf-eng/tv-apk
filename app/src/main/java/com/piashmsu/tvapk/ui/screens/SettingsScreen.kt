@@ -229,8 +229,33 @@ fun SettingsScreen() {
         }
 
         item {
+            Card("Appearance") {
+                Text(
+                    "Pick how the app should look. \"Follow system\" honours the device's dark-mode setting; the other options force a specific theme regardless of system settings.",
+                    color = Color(0xCCBFC4D6),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(10.dp))
+                val theme by vm.appTheme.collectAsState()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.piashmsu.tvapk.data.AppTheme.values().forEach { option ->
+                        AssistChip(
+                            onClick = { vm.setAppTheme(option) },
+                            label = { Text(option.label) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = if (theme == option) MaterialTheme.colorScheme.primary.copy(alpha = 0.30f)
+                                    else Color(0x33FFFFFF),
+                                labelColor = Color.White,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
             Card("About") {
-                AboutRow("App", "TV APK • v3.0 Vibe")
+                AboutRow("App", "TV APK • v5.0 Cinema")
                 AboutRow("Developer", stringResource(R.string.developer_name))
                 Row(
                     modifier = Modifier
