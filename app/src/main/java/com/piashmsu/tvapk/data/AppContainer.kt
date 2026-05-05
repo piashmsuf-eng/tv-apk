@@ -26,7 +26,11 @@ class AppContainer(context: Context) {
         .connectionPool(ConnectionPool(maxIdleConnections = 16, keepAliveDuration = 5, TimeUnit.MINUTES))
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
-        .callTimeout(60, TimeUnit.SECONDS)
+        // No callTimeout: it would cap the entire Call lifecycle, killing
+        // streaming XML/M3U downloads (EPG and large playlists) and any
+        // long-lived response body read. The connect/read timeouts above
+        // already guard against unresponsive servers; the player and
+        // recorder additionally derive no-timeout clients for video.
         .followRedirects(true)
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
