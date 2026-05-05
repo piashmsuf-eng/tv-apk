@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,18 +67,40 @@ fun HomeScreen(
     val favorites by vm.favorites.collectAsState()
     val epg by vm.epg.collectAsState()
 
-    val featured = movies.firstOrNull { !it.backdrop.isNullOrBlank() }
-        ?: movies.firstOrNull()
+    val featured = remember(movies) {
+        movies.firstOrNull { !it.backdrop.isNullOrBlank() } ?: movies.firstOrNull()
+    }
     val isOnboarding = playlistSources.isEmpty() && movieUrl.isBlank()
+
+    val nowByTvgId = remember(epg) {
+        val nowTs = System.currentTimeMillis()
+        epg.mapValues { (_, list) ->
+            list.firstOrNull { p -> nowTs in p.start..p.end }?.title
+        }
+    }
+
+    val recentChannels = remember(recents, channels) {
+        recents.asSequence()
+            .mapNotNull { rc -> channels.firstOrNull { it.id == rc.channelId } }
+            .take(10)
+            .toList()
+    }
+
+    val topChannels = remember(channels) { channels.take(20) }
+
+    val groupedMovies = remember(movies) {
+        movies.groupBy { it.genre.ifBlank { "Other" } }
+            .toList() // stable order, list of pairs avoids map iteration in compose loop
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        item { TopBrandBar() }
+        item(key = "brand") { TopBrandBar() }
         if (isOnboarding) {
-            item {
+            item(key = "onboard") {
                 EmptyState(
                     title = "Welcome to TV APK",
                     body = "Add your IPTV M3U playlist URL or pick an .m3u file from your device in Settings to start watching live channels and movies.",
@@ -85,14 +108,14 @@ fun HomeScreen(
                     onAction = { onTabRequest("settings") },
                 )
             }
-            item { DeveloperBadge() }
+            item(key = "dev") { DeveloperBadge() }
             return@LazyColumn
         }
 
         if (featured != null) {
-            item { Hero(featured = featured, onPlay = { onMovieTap(featured) }) }
+            item(key = "hero_movie") { Hero(featured = featured, onPlay = { onMovieTap(featured) }) }
         } else if (channels.isNotEmpty()) {
-            item {
+            item(key = "hero_live") {
                 LiveHero(
                     channelCount = channels.size,
                     spotlight = channels.firstOrNull { !it.logo.isNullOrBlank() } ?: channels.first(),
@@ -101,7 +124,7 @@ fun HomeScreen(
             }
         }
 
-        item {
+        item(key = "quick") {
             QuickActionRow(
                 onLive = { onTabRequest("live") },
                 onMovies = { onTabRequest("movies") },
@@ -109,61 +132,25 @@ fun HomeScreen(
             )
         }
 
-        if (recents.isNotEmpty()) {
-            val recentChannels = recents.mapNotNull { rc ->
-                channels.firstOrNull { it.id == rc.channelId }
-            }.take(10)
-            if (recentChannels.isNotEmpty()) {
-                item {
-                    SectionHeader(
-                        title = "Recently watched",
-                        subtitle = "Pick up where you left off",
-                    )
-                }
-                item {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 14.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        items(recentChannels, key = { it.id }) { ch ->
-                            val now = epg[ch.tvgId.orEmpty()].orEmpty()
-                                .firstOrNull { p -> System.currentTimeMillis() in p.start..p.end }
-                            ChannelTile(
-                                name = ch.name,
-                                logo = ch.logo,
-                                group = ch.country ?: ch.language ?: ch.group,
-                                isFavorite = ch.id in favorites,
-                                nowPlayingTitle = now?.title,
-                                onClick = { onChannelTap(ch) },
-                                onFavorite = { vm.toggleFavorite(ch.id) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (channels.isNotEmpty()) {
-            item {
+        if (recentChannels.isNotEmpty()) {
+            item(key = "rec_h") {
                 SectionHeader(
-                    title = "Live channels",
-                    subtitle = "${channels.size} channel${if (channels.size != 1) "s" else ""} loaded",
+                    title = "Recently watched",
+                    subtitle = "Pick up where you left off",
                 )
             }
-            item {
+            item(key = "rec_row") {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    items(channels.take(20)) { ch ->
-                        val now = epg[ch.tvgId.orEmpty()].orEmpty()
-                            .firstOrNull { p -> System.currentTimeMillis() in p.start..p.end }
+                    items(recentChannels, key = { it.id }) { ch ->
                         ChannelTile(
                             name = ch.name,
                             logo = ch.logo,
-                            group = ch.group,
+                            group = ch.country ?: ch.language ?: ch.group,
                             isFavorite = ch.id in favorites,
-                            nowPlayingTitle = now?.title,
+                            nowPlayingTitle = nowByTvgId[ch.tvgId.orEmpty()],
                             onClick = { onChannelTap(ch) },
                             onFavorite = { vm.toggleFavorite(ch.id) },
                         )
@@ -172,15 +159,41 @@ fun HomeScreen(
             }
         }
 
-        val groupedMovies = movies.groupBy { it.genre.ifBlank { "Other" } }
-        for ((genre, list) in groupedMovies) {
-            item { SectionHeader(title = genre) }
-            item {
+        if (topChannels.isNotEmpty()) {
+            item(key = "live_h") {
+                SectionHeader(
+                    title = "Live channels",
+                    subtitle = "${channels.size} channel${if (channels.size != 1) "s" else ""} loaded",
+                )
+            }
+            item(key = "live_row") {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 14.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    items(list) { m ->
+                    items(topChannels, key = { it.id }) { ch ->
+                        ChannelTile(
+                            name = ch.name,
+                            logo = ch.logo,
+                            group = ch.group,
+                            isFavorite = ch.id in favorites,
+                            nowPlayingTitle = nowByTvgId[ch.tvgId.orEmpty()],
+                            onClick = { onChannelTap(ch) },
+                            onFavorite = { vm.toggleFavorite(ch.id) },
+                        )
+                    }
+                }
+            }
+        }
+
+        groupedMovies.forEach { (genre, list) ->
+            item(key = "g_$genre") { SectionHeader(title = genre) }
+            item(key = "g_row_$genre") {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    items(list, key = { it.id }) { m ->
                         MovieCard(
                             title = m.title,
                             poster = m.poster,
@@ -192,7 +205,7 @@ fun HomeScreen(
             }
         }
 
-        item { DeveloperBadge() }
+        item(key = "dev") { DeveloperBadge() }
     }
 }
 

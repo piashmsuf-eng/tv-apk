@@ -84,6 +84,15 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
     val lockedGroups by vm.lockedGroups.collectAsState()
     val unlockedGroups by vm.unlockedGroups.collectAsState()
 
+    // Precompute "now playing" map once per epg refresh. Avoids per-tile
+    // currentTimeMillis() + linear scan on every recomposition.
+    val nowByTvgId = remember(epg) {
+        val nowTs = System.currentTimeMillis()
+        epg.mapValues { (_, list) ->
+            list.firstOrNull { p -> nowTs in p.start..p.end }?.title
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopRow(
             title = "Live TV",
@@ -231,8 +240,6 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             items(cat.items, key = { it.id }) { ch ->
-                                val nowPlaying = epg[ch.tvgId.orEmpty()].orEmpty()
-                                    .firstOrNull { now -> System.currentTimeMillis() in now.start..now.end }
                                 val st = statuses[ch.id]
                                 val statusColor = when (st) {
                                     ChannelStatus.Online -> Color(0xFF22C55E)
@@ -249,7 +256,7 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
                                     logo = ch.logo,
                                     group = ch.country ?: ch.language ?: ch.group,
                                     isFavorite = ch.id in favorites,
-                                    nowPlayingTitle = nowPlaying?.title,
+                                    nowPlayingTitle = nowByTvgId[ch.tvgId.orEmpty()],
                                     onClick = { onChannelTap(ch) },
                                     onFavorite = { vm.toggleFavorite(ch.id) },
                                     statusColor = statusColor,
