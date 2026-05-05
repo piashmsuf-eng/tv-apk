@@ -9,6 +9,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 /**
  * Builds an ExoPlayer instance configured to handle the dominant IPTV stream
@@ -45,7 +46,17 @@ fun buildPlayerForUrl(
     val targetUrl = url
 
     val httpFactory: HttpDataSource.Factory = if (httpClient != null) {
-        OkHttpDataSource.Factory(httpClient)
+        // Derive a player-specific client from the shared one with no
+        // call timeout. ExoPlayer keeps a single OkHttp Call open for the
+        // entire playback duration on progressive (MP4/MKV) streams; the
+        // shared client's 60 s callTimeout would hard-cancel that.
+        // ConnectionPool, dispatcher, cache, and protocols are all
+        // inherited via newBuilder() so we keep HTTP/2 multiplexing.
+        val playerClient = httpClient.newBuilder()
+            .callTimeout(0, TimeUnit.MILLISECONDS)
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .build()
+        OkHttpDataSource.Factory(playerClient)
             .setUserAgent(userAgent ?: "TVApk/1.0 (Android)")
     } else {
         androidx.media3.datasource.DefaultHttpDataSource.Factory()
@@ -65,8 +76,10 @@ fun buildPlayerForUrl(
     val factory = DefaultMediaSourceFactory(dataSourceFactory)
 
     val targetMaxMs = bufferSeconds.coerceIn(5, 120) * 1_000
+    // We want a low minimum buffer (5s) for fast channel start. Media3's
+    // DEFAULT_MIN_BUFFER_MS is 50 s, so we deliberately do NOT inherit it.
+    // We just clamp to a sane floor so really low user settings don't break.
     val minBufferMs = 5_000
-        .coerceAtLeast(DefaultLoadControl.DEFAULT_MIN_BUFFER_MS / 4)
     val maxBufferMs = targetMaxMs.coerceAtLeast(minBufferMs)
     // Fast start: kick off as soon as ~800 ms is buffered; otherwise the
     // Media3 default of 2500 ms applies.

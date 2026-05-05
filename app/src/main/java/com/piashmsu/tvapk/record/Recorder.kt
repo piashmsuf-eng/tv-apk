@@ -8,12 +8,14 @@ import android.os.Environment
 import android.provider.MediaStore
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * Low-level recording primitive used by [RecordingService].
@@ -31,30 +33,69 @@ import java.util.Locale
  */
 class Recorder(
     private val context: Context,
-    private val http: OkHttpClient,
+    sharedHttp: OkHttpClient,
     private val streamUrl: String,
     private val title: String,
     private val userAgent: String?,
     private val referer: String?,
     private val extraHeaders: Map<String, String>,
 ) {
+    /**
+     * The shared client has a 60 s `callTimeout` which would kill any
+     * recording longer than 1 minute (especially on progressive streams).
+     * Derive a no-timeout client that still inherits the connection pool,
+     * cache, and HTTP/2 protocol setup.
+     */
+    private val http: OkHttpClient = sharedHttp.newBuilder()
+        .callTimeout(0, TimeUnit.MILLISECONDS)
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+
     /** Returns absolute or content URI string of the file when finished, or null on failure. */
     fun run(shouldStop: () -> Boolean, onProgressBytes: (Long) -> Unit): String? {
-        val isHls = streamUrl.contains(".m3u8", ignoreCase = true) ||
-            streamUrl.contains("application/vnd.apple.mpegurl", ignoreCase = true)
+        // Probe the URL once: if Content-Type is HLS or the body starts
+        // with #EXTM3U, treat it as HLS regardless of file extension.
+        // Many IPTV providers serve HLS without a `.m3u8` suffix.
+        val isHls = detectHls()
         val ext = if (isHls) "ts" else inferExtension(streamUrl)
         val fileName = buildFileName(title, ext)
 
         val (outStream, displayPath) = openOutput(fileName, ext) ?: return null
         return try {
-            outStream.use { os ->
+            BufferedOutputStream(outStream, 256 * 1024).use { os ->
                 if (isHls) recordHls(os, shouldStop, onProgressBytes)
                 else recordProgressive(os, shouldStop, onProgressBytes)
+                os.flush()
             }
             displayPath
         } catch (t: Throwable) {
             null
         }
+    }
+
+    private fun detectHls(): Boolean {
+        val urlMatch = streamUrl.contains(".m3u8", ignoreCase = true) ||
+            streamUrl.contains("application/vnd.apple.mpegurl", ignoreCase = true) ||
+            streamUrl.contains("application/x-mpegurl", ignoreCase = true)
+        if (urlMatch) return true
+        return runCatching {
+            http.newCall(buildRequest(streamUrl)).execute().use { resp ->
+                val contentType = resp.header("Content-Type").orEmpty().lowercase()
+                if (contentType.contains("mpegurl") || contentType.contains("vnd.apple")) {
+                    return@use true
+                }
+                // Peek first 64 bytes — HLS playlists begin with #EXTM3U
+                val src = resp.body?.byteStream() ?: return@use false
+                val head = ByteArray(64)
+                var read = 0
+                while (read < head.size) {
+                    val n = src.read(head, read, head.size - read)
+                    if (n <= 0) break
+                    read += n
+                }
+                String(head, 0, read, Charsets.US_ASCII).startsWith("#EXTM3U")
+            }
+        }.getOrDefault(false)
     }
 
     private fun recordHls(
