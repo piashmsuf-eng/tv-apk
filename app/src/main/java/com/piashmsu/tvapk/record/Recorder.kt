@@ -41,14 +41,25 @@ class Recorder(
     private val extraHeaders: Map<String, String>,
 ) {
     /**
-     * The shared client has a 60 s `callTimeout` which would kill any
-     * recording longer than 1 minute (especially on progressive streams).
-     * Derive a no-timeout client that still inherits the connection pool,
-     * cache, and HTTP/2 protocol setup.
+     * The shared client's 20 s readTimeout would interrupt long progressive
+     * stream reads. Derive a no-timeout client for the actual recording that
+     * still inherits the connection pool, cache, and HTTP/2 protocol setup.
      */
     private val http: OkHttpClient = sharedHttp.newBuilder()
-        .callTimeout(0, TimeUnit.MILLISECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+
+    /**
+     * Bounded-timeout client used only for the one-shot HLS probe in
+     * [detectHls]. We must NOT use the no-timeout `http` client here:
+     * if the server accepts the TCP connection but never sends headers
+     * or body, OkHttp's blocking I/O cannot be interrupted by coroutine
+     * cancellation and the recording thread would wedge forever.
+     */
+    private val probeHttp: OkHttpClient = sharedHttp.newBuilder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(20, TimeUnit.SECONDS)
         .build()
 
     /** Returns absolute or content URI string of the file when finished, or null on failure. */
@@ -79,7 +90,7 @@ class Recorder(
             streamUrl.contains("application/x-mpegurl", ignoreCase = true)
         if (urlMatch) return true
         return runCatching {
-            http.newCall(buildRequest(streamUrl)).execute().use { resp ->
+            probeHttp.newCall(buildRequest(streamUrl)).execute().use { resp ->
                 val contentType = resp.header("Content-Type").orEmpty().lowercase()
                 if (contentType.contains("mpegurl") || contentType.contains("vnd.apple")) {
                     return@use true

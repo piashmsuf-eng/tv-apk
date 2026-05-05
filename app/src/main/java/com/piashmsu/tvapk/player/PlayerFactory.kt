@@ -47,13 +47,12 @@ fun buildPlayerForUrl(
 
     val httpFactory: HttpDataSource.Factory = if (httpClient != null) {
         // Derive a player-specific client from the shared one with no
-        // call timeout. ExoPlayer keeps a single OkHttp Call open for the
+        // read timeout. ExoPlayer keeps a single OkHttp Call open for the
         // entire playback duration on progressive (MP4/MKV) streams; the
-        // shared client's 60 s callTimeout would hard-cancel that.
+        // shared client's 20 s readTimeout would interrupt that.
         // ConnectionPool, dispatcher, cache, and protocols are all
         // inherited via newBuilder() so we keep HTTP/2 multiplexing.
         val playerClient = httpClient.newBuilder()
-            .callTimeout(0, TimeUnit.MILLISECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .build()
         OkHttpDataSource.Factory(playerClient)
