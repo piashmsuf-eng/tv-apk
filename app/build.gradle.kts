@@ -11,17 +11,19 @@ android {
         applicationId = "com.piashmsu.tvapk"
         minSdk = 23
         targetSdk = 34
-        versionCode = 5
-        versionName = "4.1-vibe"
+        versionCode = 6
+        versionName = "5.0-mega"
 
         vectorDrawables {
             useSupportLibrary = true
         }
+        resourceConfigurations += listOf("en", "bn")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -31,6 +33,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            isMinifyEnabled = false
         }
     }
 
@@ -45,6 +48,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     composeOptions {
@@ -102,6 +106,18 @@ dependencies {
 
     // Background refresh of playlists / EPG
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // Splash screen API for the animated boot logo
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
+    // Google Cast SDK for Chromecast support (optional at runtime — guarded in code)
+    implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
+
+    // ZXing embedded scanner for the QR-code M3U import flow
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
+    // mediarouter is required by Cast SDK
+    implementation("androidx.mediarouter:mediarouter:1.7.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

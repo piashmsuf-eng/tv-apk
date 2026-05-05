@@ -1,6 +1,13 @@
 package com.piashmsu.tvapk.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -25,7 +32,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -46,6 +58,7 @@ import com.piashmsu.tvapk.data.PlaybackTargetHolder
 import com.piashmsu.tvapk.ui.screens.HomeScreen
 import com.piashmsu.tvapk.ui.screens.LiveTvScreen
 import com.piashmsu.tvapk.ui.screens.MoviesScreen
+import com.piashmsu.tvapk.ui.screens.OnboardingScreen
 import com.piashmsu.tvapk.ui.screens.PlayerScreen
 import com.piashmsu.tvapk.ui.screens.SearchScreen
 import com.piashmsu.tvapk.ui.screens.SettingsScreen
@@ -60,21 +73,32 @@ private sealed class Tab(val route: String, val title: String, val icon: ImageVe
 }
 
 private val tabs = listOf(Tab.Home, Tab.Live, Tab.Movies, Tab.Search, Tab.Settings)
+private val tabRoutes = tabs.map { it.route }.toSet()
 
 @Composable
-fun TvApkRoot() {
+fun TvApkRoot(isInPipState: MutableState<Boolean> = remember { mutableStateOf(false) }) {
     val nav = rememberNavController()
+    val viewModel: AppViewModel = viewModel(factory = AppViewModel.Factory)
+    val onboarded by viewModel.onboarded.collectAsState(initial = true)
     val openChannel: (Channel) -> Unit = { ch ->
         PlaybackTargetHolder.current.value = PlaybackTarget.LiveChannel(ch)
+        viewModel.bumpWatchCounter("ch:${ch.id}")
         nav.openPlayer()
     }
     val openMovie: (Movie) -> Unit = { m ->
         PlaybackTargetHolder.current.value = PlaybackTarget.VideoOnDemand(m)
+        viewModel.bumpWatchCounter("mv:${m.id}")
         nav.openPlayer()
     }
+
+    if (!onboarded) {
+        OnboardingScreen(onFinished = { viewModel.markOnboarded() })
+        return
+    }
+
     Scaffold(
         containerColor = Color.Transparent,
-        bottomBar = { TvApkBottomBar(nav) }
+        bottomBar = { TvApkBottomBar(nav, isInPipState.value) }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -84,20 +108,33 @@ fun TvApkRoot() {
         ) {
             NavHost(navController = nav, startDestination = Tab.Home.route) {
                 composable(Tab.Home.route) {
-                    HomeScreen(
-                        onChannelTap = openChannel,
-                        onMovieTap = openMovie,
-                        onTabRequest = { route -> nav.tabNavigate(route) },
-                    )
+                    AnimatedTabContent {
+                        HomeScreen(
+                            onChannelTap = openChannel,
+                            onMovieTap = openMovie,
+                            onTabRequest = { route -> nav.tabNavigate(route) },
+                        )
+                    }
                 }
-                composable(Tab.Live.route) { LiveTvScreen(onChannelTap = openChannel) }
-                composable(Tab.Movies.route) { MoviesScreen(onMovieTap = openMovie) }
+                composable(Tab.Live.route) {
+                    AnimatedTabContent { LiveTvScreen(onChannelTap = openChannel) }
+                }
+                composable(Tab.Movies.route) {
+                    AnimatedTabContent { MoviesScreen(onMovieTap = openMovie) }
+                }
                 composable(Tab.Search.route) {
-                    SearchScreen(onChannelTap = openChannel, onMovieTap = openMovie)
+                    AnimatedTabContent {
+                        SearchScreen(onChannelTap = openChannel, onMovieTap = openMovie)
+                    }
                 }
-                composable(Tab.Settings.route) { SettingsScreen() }
+                composable(Tab.Settings.route) {
+                    AnimatedTabContent { SettingsScreen() }
+                }
                 composable("player") {
-                    PlayerScreen(onBack = { nav.popBackStack() })
+                    PlayerScreen(
+                        onBack = { nav.popBackStack() },
+                        isInPip = isInPipState.value,
+                    )
                 }
             }
         }
@@ -105,15 +142,39 @@ fun TvApkRoot() {
 }
 
 /**
+ * Lightweight cross-tab fade. We don't slide between tabs because every
+ * screen owns its own scroll state — sliding feels janky once a tab is
+ * deep-scrolled. A 220 ms fade is enough vibe.
+ */
+@Composable
+private fun AnimatedTabContent(content: @Composable () -> Unit) {
+    val show = remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { show.value = true }
+    AnimatedContent(
+        targetState = show.value,
+        label = "tab",
+        transitionSpec = {
+            (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 12 })
+                .togetherWith(fadeOut(tween(140)) + slideOutHorizontally(tween(140)) { -it / 12 })
+        },
+    ) { visible ->
+        if (visible) Box { content() }
+    }
+}
+
+/**
  * Floating glassmorphic pill nav. Selected tab grows a neon-purple capsule
  * under it with a faint glow. Replaces the stock Material NavigationBar so
  * we get the floating pill silhouette and the grow-on-select animation.
+ *
+ * Hidden in PiP mode because the system shrinks the window down to the
+ * stream and the bottom bar would just steal pixels.
  */
 @Composable
-private fun TvApkBottomBar(nav: NavHostController) {
+private fun TvApkBottomBar(nav: NavHostController, hideForPip: Boolean) {
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
-    if (current == "player") return
+    if (current !in tabRoutes || hideForPip) return
     Box(
         modifier = Modifier
             .fillMaxWidth()

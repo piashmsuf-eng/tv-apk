@@ -3,4 +3,138 @@
     <string name="app_name">TV APK</string>
     <string name="developer_name">Shorif Uddin Piash</string>
     <string name="developer_handle">fb.com/piashmsuf</string>
+
+    <!-- Tabs -->
+    <string name="tab_home">Home</string>
+    <string name="tab_live">Live TV</string>
+    <string name="tab_movies">Movies</string>
+    <string name="tab_search">Search</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Common -->
+    <string name="common_refresh">Refresh</string>
+    <string name="common_save">Save</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_ok">OK</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_edit">Edit</string>
+    <string name="common_add">Add</string>
+    <string name="common_close">Close</string>
+    <string name="common_continue">Continue</string>
+    <string name="common_skip">Skip</string>
+    <string name="common_done">Done</string>
+    <string name="common_back">Back</string>
+    <string name="common_unlock">Unlock</string>
+    <string name="common_yes">Yes</string>
+    <string name="common_no">No</string>
+
+    <!-- Live TV -->
+    <string name="live_search_hint">Search channels…</string>
+    <string name="live_no_playlists_title">No playlists configured</string>
+    <string name="live_no_playlists_body">Add at least one IPTV M3U playlist URL or pick a local file in Settings.</string>
+    <string name="live_tab_online">Online</string>
+    <string name="live_tab_offline">Offline</string>
+    <string name="live_tab_all">All</string>
+    <string name="live_probe">Probe channels</string>
+    <string name="live_sort">Sort</string>
+    <string name="live_sort_default">Default</string>
+    <string name="live_sort_alpha">Alphabetical</string>
+    <string name="live_sort_country">By country</string>
+    <string name="live_sort_online">Online first</string>
+    <string name="live_sort_favorites">Favorites first</string>
+    <string name="live_filter_country">Country</string>
+    <string name="live_filter_language">Language</string>
+    <string name="live_filter_clear">Clear filters</string>
+    <string name="live_locked_title">Locked group</string>
+    <string name="live_locked_body">Enter PIN to view locked groups.</string>
+
+    <!-- Player -->
+    <string name="player_pip">Picture-in-Picture</string>
+    <string name="player_speed">Speed</string>
+    <string name="player_aspect">Aspect</string>
+    <string name="player_sleep">Sleep</string>
+    <string name="player_record">Record</string>
+    <string name="player_external">Open in external player</string>
+    <string name="player_tracks">Tracks</string>
+    <string name="player_audio_track">Audio track</string>
+    <string name="player_subtitle_track">Subtitle</string>
+    <string name="player_quality">Quality</string>
+    <string name="player_quality_auto">Auto</string>
+    <string name="player_subtitle_off">Off</string>
+    <string name="player_no_audio_tracks">No audio tracks reported</string>
+    <string name="player_skip_offline">Auto-skip offline</string>
+    <string name="player_resume_title">Resume?</string>
+    <string name="player_resume_body">Continue from where you left off?</string>
+    <string name="player_resume_yes">Resume</string>
+    <string name="player_resume_start">Start over</string>
+
+    <!-- Settings -->
+    <string name="settings_playlists">IPTV / M3U playlists</string>
+    <string name="settings_movies">Movie catalog</string>
+    <string name="settings_refresh">Auto-refresh</string>
+    <string name="settings_theme">Appearance</string>
+    <string name="settings_theme_palette">Color palette</string>
+    <string name="settings_theme_palette_default">Default Vibe</string>
+    <string name="settings_theme_palette_amoled">AMOLED Black</string>
+    <string name="settings_theme_palette_sunset">Sunset Orange</string>
+    <string name="settings_theme_palette_ocean">Ocean Blue</string>
+    <string name="settings_launcher_icon">Launcher icon</string>
+    <string name="settings_launcher_default">Default Vibe</string>
+    <string name="settings_launcher_eid">Eid</string>
+    <string name="settings_launcher_boishakh">Pohela Boishakh</string>
+    <string name="settings_launcher_bijoy">Bijoy Dibos</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_system">Follow system</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_bangla">বাংলা</string>
+    <string name="settings_pin_lock">Adult/locked groups</string>
+    <string name="settings_pin_set">Set PIN</string>
+    <string name="settings_pin_change">Change PIN</string>
+    <string name="settings_pin_clear">Clear PIN</string>
+    <string name="settings_pin_groups">Locked groups</string>
+    <string name="settings_buffer">Player buffer (seconds)</string>
+    <string name="settings_external_player">External player package</string>
+    <string name="settings_external_player_hint">e.g. org.videolan.vlc — leave blank to show a chooser</string>
+    <string name="settings_tmdb_key">TMDB API key (optional)</string>
+    <string name="settings_trakt_key">Trakt.tv client ID (optional)</string>
+    <string name="settings_cast">Chromecast</string>
+    <string name="settings_cast_available">Cast available — tap the cast icon in the player</string>
+    <string name="settings_cast_unavailable">No cast devices found nearby</string>
+    <string name="settings_qr_scan">Scan QR code (M3U URL)</string>
+    <string name="settings_notifications">EPG notifications</string>
+    <string name="settings_notifications_body">Notify me when a favorite channel\'s programme starts.</string>
+    <string name="settings_crash">Crash reporter</string>
+    <string name="settings_crash_body">Save crash logs locally for debugging (off by default).</string>
+    <string name="settings_update_check">Check for updates</string>
+    <string name="settings_update_latest">You\'re on the latest version.</string>
+    <string name="settings_backup">Backup &amp; restore</string>
+    <string name="settings_backup_export">Export settings</string>
+    <string name="settings_backup_import">Import settings</string>
+    <string name="settings_backup_done">Settings exported</string>
+
+    <!-- Onboarding -->
+    <string name="onboard_title_1">Bring your playlist</string>
+    <string name="onboard_body_1">Paste any standard IPTV M3U URL or pick a local .m3u file. We\'ll parse it and group channels by category.</string>
+    <string name="onboard_title_2">Auto-update + EPG</string>
+    <string name="onboard_body_2">Enable auto-refresh so your playlist stays fresh, and add an EPG URL to see now / next on every channel.</string>
+    <string name="onboard_title_3">You\'re ready to vibe</string>
+    <string name="onboard_body_3">Tap a channel to play. Long-press for a preview. Swipe up/down on the player for brightness &amp; volume.</string>
+    <string name="onboard_get_started">Get started</string>
+
+    <!-- Movies -->
+    <string name="movies_filters_year">Year</string>
+    <string name="movies_filters_genre">Genre</string>
+    <string name="movies_filters_language">Language</string>
+    <string name="movies_filters_rating">Rating</string>
+    <string name="movies_watchlist">Watchlist</string>
+    <string name="movies_trending">Trending in your library</string>
+    <string name="movies_continue">Continue watching</string>
+
+    <!-- Update checker -->
+    <string name="update_available_title">Update available</string>
+    <string name="update_available_body">A newer version of TV APK is available on GitHub Releases.</string>
+    <string name="update_open_releases">Open releases</string>
+
+    <!-- Notifications -->
+    <string name="notif_program_start_title">%1$s is about to start</string>
 </resources>

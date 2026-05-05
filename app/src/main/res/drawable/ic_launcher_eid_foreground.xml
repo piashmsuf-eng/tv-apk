@@ -1,0 +1,19 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Crescent + star wrapped inside the TV silhouette: Eid theme -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,32 h48 a4,4 0 0 1 4,4 v32 a4,4 0 0 1 -4,4 h-48 a4,4 0 0 1 -4,-4 v-32 a4,4 0 0 1 4,-4 z M30,38 v26 h48 v-26 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M44,76 h20 v3 h-20 z" />
+    <path
+        android:fillColor="#F8E16C"
+        android:pathData="M62,51 m-9,0 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 M67,51 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
+    <path
+        android:fillColor="#F8E16C"
+        android:pathData="M48,46 l1.4,3.0 l3.3,0.4 l-2.4,2.3 l0.6,3.2 l-2.9,-1.5 l-2.9,1.5 l0.6,-3.2 l-2.4,-2.3 l3.3,-0.4 z" />
+</vector>

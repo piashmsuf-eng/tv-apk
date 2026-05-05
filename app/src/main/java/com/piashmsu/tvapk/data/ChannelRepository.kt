@@ -89,7 +89,16 @@ class ChannelRepository(
         }
 
         _channels.value = merged
-        _statuses.value = emptyMap()
+        // Re-hydrate cached probe results so users don't see "Unknown" until
+        // they manually re-probe. Stale (>24 h) entries are discarded.
+        val cached = prefs.probeResults.first()
+        val lastRun = prefs.probeLastRunMs.first()
+        val fresh = System.currentTimeMillis() - lastRun < 24 * 60 * 60 * 1000L
+        _statuses.value = if (cached.isNotEmpty() && fresh) {
+            cached.mapValues { (_, online) ->
+                if (online) ChannelStatus.Online else ChannelStatus.Offline
+            }
+        } else emptyMap()
         _state.value = LoadState.Success(merged.size)
         Result.success(merged.size)
     }
@@ -139,6 +148,95 @@ class ChannelRepository(
         val online = results.count { it.value == ChannelStatus.Online }
         val offline = results.count { it.value == ChannelStatus.Offline }
         _probeProgress.value = ProbeProgress.Finished(online, offline, total)
+        // Persist results so the next launch shows the same Online/Offline
+        // state without the user having to re-run the probe.
+        runCatching {
+            prefs.setProbeResults(results.mapValues { it.value == ChannelStatus.Online })
+        }
+    }
+
+    /**
+     * Group channels by category respecting the user's [SortMode] +
+     * country/language filter chips. Favorites can optionally be
+     * surfaced first.
+     */
+    fun groupedByCategory(
+        query: String,
+        hideOffline: Boolean,
+        onlyOffline: Boolean,
+        sortMode: SortMode,
+        countryFilter: String,
+        languageFilter: String,
+        favoriteIds: Set<String>,
+        lockedGroups: Set<String>,
+        unlockedGroups: Set<String>,
+    ): List<Category<Channel>> {
+        val items = _channels.value
+        val statuses = _statuses.value
+        val filtered = items.asSequence()
+            .filter { ch ->
+                val matches = query.isBlank() ||
+                    ch.name.contains(query, true) ||
+                    ch.group.contains(query, true) ||
+                    ch.sourceName.contains(query, true)
+                if (!matches) return@filter false
+                if (countryFilter.isNotBlank() && !ch.country.equals(countryFilter, true)) return@filter false
+                if (languageFilter.isNotBlank() && !ch.language.equals(languageFilter, true)) return@filter false
+                if (ch.group in lockedGroups && ch.group !in unlockedGroups) return@filter false
+                val s = statuses[ch.id]
+                if (onlyOffline) s == ChannelStatus.Offline
+                else if (hideOffline) s != ChannelStatus.Offline
+                else true
+            }
+            .toList()
+
+        val sorted = filtered.sortedWith(channelComparator(sortMode, statuses, favoriteIds))
+        val grouped = sorted.groupBy { it.group }.toList()
+
+        val ordered = when (sortMode) {
+            SortMode.ByCountry -> grouped.sortedBy { (g, list) ->
+                (list.firstOrNull()?.country ?: g).lowercase()
+            }
+            SortMode.FavoritesFirst -> {
+                val (fav, rest) = grouped.partition { (_, list) ->
+                    list.any { favoriteIds.contains(it.id) }
+                }
+                fav + rest
+            }
+            SortMode.Alphabetical -> grouped.sortedBy { it.first.lowercase() }
+            SortMode.OnlineFirst -> grouped.sortedByDescending { (_, list) ->
+                list.count { statuses[it.id] == ChannelStatus.Online }
+            }
+            else -> grouped.sortedBy { it.first }
+        }
+
+        return ordered.map { (g, list) -> Category(g, list) }
+    }
+
+    fun availableCountries(): List<String> =
+        _channels.value.mapNotNull { it.country?.takeIf { c -> c.isNotBlank() } }
+            .toSet().sorted()
+
+    fun availableLanguages(): List<String> =
+        _channels.value.mapNotNull { it.language?.takeIf { l -> l.isNotBlank() } }
+            .toSet().sorted()
+
+    private fun channelComparator(
+        sortMode: SortMode,
+        statuses: Map<String, ChannelStatus>,
+        favoriteIds: Set<String>,
+    ): Comparator<Channel> {
+        val name = compareBy<Channel> { it.name.lowercase() }
+        return when (sortMode) {
+            SortMode.Alphabetical -> name
+            SortMode.ByCountry ->
+                compareBy<Channel> { (it.country ?: "").lowercase() }.then(name)
+            SortMode.OnlineFirst ->
+                compareBy<Channel> { statuses[it.id] != ChannelStatus.Online }.then(name)
+            SortMode.FavoritesFirst ->
+                compareBy<Channel> { it.id !in favoriteIds }.then(name)
+            else -> compareBy<Channel> { it.group.lowercase() }.then(name)
+        }
     }
 
     private fun probeOne(channel: Channel): ChannelStatus {
@@ -211,36 +309,6 @@ class ChannelRepository(
         }
     }
 
-    /**
-     * Group channels by category. When [hideOffline] is true, channels that
-     * have been *probed* and marked [ChannelStatus.Offline] are excluded —
-     * unprobed (Unknown) channels remain visible. When [onlyOffline] is
-     * true, only the offline group is returned (for the "Offline" tab).
-     */
-    fun groupedByCategory(
-        query: String = "",
-        hideOffline: Boolean = false,
-        onlyOffline: Boolean = false,
-    ): List<Category<Channel>> {
-        val items = _channels.value
-        val statuses = _statuses.value
-        val filtered = items.asSequence()
-            .filter { ch ->
-                val matches = query.isBlank() ||
-                    ch.name.contains(query, true) ||
-                    ch.group.contains(query, true) ||
-                    ch.sourceName.contains(query, true)
-                if (!matches) return@filter false
-                val s = statuses[ch.id]
-                if (onlyOffline) s == ChannelStatus.Offline
-                else if (hideOffline) s != ChannelStatus.Offline
-                else true
-            }
-            .toList()
-        return filtered.groupBy { it.group }
-            .toSortedMap()
-            .map { (g, list) -> Category(g, list.sortedBy { it.name }) }
-    }
 }
 
 enum class ChannelStatus { Online, Offline }

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">টিভি এপিকে</string>
+
+    <!-- Tabs -->
+    <string name="tab_home">হোম</string>
+    <string name="tab_live">লাইভ টিভি</string>
+    <string name="tab_movies">মুভি</string>
+    <string name="tab_search">খুঁজুন</string>
+    <string name="tab_settings">সেটিংস</string>
+
+    <!-- Common -->
+    <string name="common_refresh">রিফ্রেশ</string>
+    <string name="common_save">সেভ</string>
+    <string name="common_cancel">বাতিল</string>
+    <string name="common_ok">ঠিক আছে</string>
+    <string name="common_delete">ডিলিট</string>
+    <string name="common_edit">এডিট</string>
+    <string name="common_add">যোগ করুন</string>
+    <string name="common_close">বন্ধ করুন</string>
+    <string name="common_continue">চালিয়ে যান</string>
+    <string name="common_skip">এড়িয়ে যান</string>
+    <string name="common_done">সম্পন্ন</string>
+    <string name="common_back">ফিরুন</string>
+    <string name="common_unlock">আনলক</string>
+    <string name="common_yes">হ্যাঁ</string>
+    <string name="common_no">না</string>
+
+    <!-- Live TV -->
+    <string name="live_search_hint">চ্যানেল খুঁজুন…</string>
+    <string name="live_no_playlists_title">কোনো প্লেলিস্ট নেই</string>
+    <string name="live_no_playlists_body">সেটিংস থেকে অন্তত একটি IPTV M3U URL দিন বা একটি লোকাল ফাইল বাছুন।</string>
+    <string name="live_tab_online">অনলাইন</string>
+    <string name="live_tab_offline">অফলাইন</string>
+    <string name="live_tab_all">সব</string>
+    <string name="live_probe">চেক করুন</string>
+    <string name="live_sort">সাজান</string>
+    <string name="live_sort_default">ডিফল্ট</string>
+    <string name="live_sort_alpha">নাম অনুযায়ী</string>
+    <string name="live_sort_country">দেশ অনুযায়ী</string>
+    <string name="live_sort_online">অনলাইন প্রথমে</string>
+    <string name="live_sort_favorites">প্রিয় প্রথমে</string>
+    <string name="live_filter_country">দেশ</string>
+    <string name="live_filter_language">ভাষা</string>
+    <string name="live_filter_clear">ফিল্টার মুছুন</string>
+    <string name="live_locked_title">লক করা গ্রুপ</string>
+    <string name="live_locked_body">লক করা গ্রুপ দেখতে PIN দিন।</string>
+
+    <!-- Player -->
+    <string name="player_pip">পিকচার-ইন-পিকচার</string>
+    <string name="player_speed">গতি</string>
+    <string name="player_aspect">অ্যাসপেক্ট</string>
+    <string name="player_sleep">স্লিপ টাইমার</string>
+    <string name="player_record">রেকর্ড</string>
+    <string name="player_external">এক্সটার্নাল প্লেয়ারে চালান</string>
+    <string name="player_tracks">ট্র্যাক</string>
+    <string name="player_audio_track">অডিও ট্র্যাক</string>
+    <string name="player_subtitle_track">সাবটাইটেল</string>
+    <string name="player_quality">কোয়ালিটি</string>
+    <string name="player_quality_auto">অটো</string>
+    <string name="player_subtitle_off">বন্ধ</string>
+    <string name="player_no_audio_tracks">কোনো অডিও ট্র্যাক পাওয়া যায়নি</string>
+    <string name="player_skip_offline">অফলাইন স্বয়ংক্রিয়ভাবে এড়িয়ে যান</string>
+    <string name="player_resume_title">চালিয়ে যাবেন?</string>
+    <string name="player_resume_body">যেখানে রেখেছিলেন সেখান থেকে চালু করব?</string>
+    <string name="player_resume_yes">চালিয়ে যান</string>
+    <string name="player_resume_start">শুরু থেকে</string>
+
+    <!-- Settings -->
+    <string name="settings_playlists">IPTV / M3U প্লেলিস্ট</string>
+    <string name="settings_movies">মুভি ক্যাটালগ</string>
+    <string name="settings_refresh">অটো-রিফ্রেশ</string>
+    <string name="settings_theme">থিম</string>
+    <string name="settings_theme_palette">কালার প্যালেট</string>
+    <string name="settings_theme_palette_default">ডিফল্ট ভাইব</string>
+    <string name="settings_theme_palette_amoled">AMOLED ব্ল্যাক</string>
+    <string name="settings_theme_palette_sunset">সানসেট অরেঞ্জ</string>
+    <string name="settings_theme_palette_ocean">ওশান ব্লু</string>
+    <string name="settings_launcher_icon">লঞ্চার আইকন</string>
+    <string name="settings_launcher_default">ডিফল্ট</string>
+    <string name="settings_launcher_eid">ঈদ</string>
+    <string name="settings_launcher_boishakh">পহেলা বৈশাখ</string>
+    <string name="settings_launcher_bijoy">বিজয় দিবস</string>
+    <string name="settings_language">ভাষা</string>
+    <string name="settings_language_system">ফোন অনুসরণ করুন</string>
+    <string name="settings_language_english">English</string>
+    <string name="settings_language_bangla">বাংলা</string>
+    <string name="settings_pin_lock">প্রাপ্তবয়স্ক / লক করা গ্রুপ</string>
+    <string name="settings_pin_set">PIN সেট করুন</string>
+    <string name="settings_pin_change">PIN পরিবর্তন</string>
+    <string name="settings_pin_clear">PIN মুছুন</string>
+    <string name="settings_pin_groups">লক করা গ্রুপ</string>
+    <string name="settings_buffer">প্লেয়ার বাফার (সেকেন্ড)</string>
+    <string name="settings_external_player">এক্সটার্নাল প্লেয়ার প্যাকেজ</string>
+    <string name="settings_external_player_hint">যেমন org.videolan.vlc — ফাঁকা রাখলে চয়েস ডায়লগ আসবে</string>
+    <string name="settings_tmdb_key">TMDB API key (ঐচ্ছিক)</string>
+    <string name="settings_trakt_key">Trakt.tv ক্লায়েন্ট আইডি (ঐচ্ছিক)</string>
+    <string name="settings_cast">ক্রোমকাস্ট</string>
+    <string name="settings_cast_available">কাস্ট ডিভাইস পাওয়া গেছে — প্লেয়ারে কাস্ট আইকন চাপুন</string>
+    <string name="settings_cast_unavailable">কাছাকাছি কোনো কাস্ট ডিভাইস নেই</string>
+    <string name="settings_qr_scan">QR কোড স্ক্যান (M3U URL)</string>
+    <string name="settings_notifications">EPG নোটিফিকেশন</string>
+    <string name="settings_notifications_body">প্রিয় চ্যানেলে নতুন প্রোগ্রাম শুরু হলে আমাকে জানান।</string>
+    <string name="settings_crash">ক্র্যাশ রিপোর্টার</string>
+    <string name="settings_crash_body">ডিবাগের জন্য ক্র্যাশ লগ লোকালি সেভ করুন (ডিফল্ট বন্ধ)।</string>
+    <string name="settings_update_check">আপডেট চেক করুন</string>
+    <string name="settings_update_latest">আপনি সর্বশেষ ভার্সনে আছেন।</string>
+    <string name="settings_backup">ব্যাকআপ ও রিস্টোর</string>
+    <string name="settings_backup_export">সেটিংস এক্সপোর্ট</string>
+    <string name="settings_backup_import">সেটিংস ইম্পোর্ট</string>
+    <string name="settings_backup_done">সেটিংস এক্সপোর্ট হয়েছে</string>
+
+    <!-- Onboarding -->
+    <string name="onboard_title_1">প্লেলিস্ট নিয়ে আসুন</string>
+    <string name="onboard_body_1">যেকোনো IPTV M3U URL পেস্ট করুন বা লোকাল .m3u ফাইল বাছুন। আমরা সব চ্যানেল ক্যাটাগরি অনুযায়ী সাজিয়ে দেবো।</string>
+    <string name="onboard_title_2">অটো-আপডেট + EPG</string>
+    <string name="onboard_body_2">অটো-রিফ্রেশ চালু করুন যাতে প্লেলিস্ট ফ্রেশ থাকে, আর EPG URL দিলে চ্যানেলে এখন/পরে দেখাবে।</string>
+    <string name="onboard_title_3">প্রস্তুত!</string>
+    <string name="onboard_body_3">চ্যানেলে ট্যাপ করে চালু করুন। লং-প্রেস করলে প্রিভিউ আসবে। প্লেয়ারে উপর/নিচ স্বাইপ করলে ব্রাইটনেস ও ভলিউম কন্ট্রোল হবে।</string>
+    <string name="onboard_get_started">শুরু করুন</string>
+
+    <!-- Movies -->
+    <string name="movies_filters_year">সাল</string>
+    <string name="movies_filters_genre">জনরা</string>
+    <string name="movies_filters_language">ভাষা</string>
+    <string name="movies_filters_rating">রেটিং</string>
+    <string name="movies_watchlist">ওয়াচলিস্ট</string>
+    <string name="movies_trending">আপনার লাইব্রেরিতে ট্রেন্ডিং</string>
+    <string name="movies_continue">যেখানে থেমেছিলেন</string>
+
+    <!-- Update checker -->
+    <string name="update_available_title">আপডেট পাওয়া গেছে</string>
+    <string name="update_available_body">GitHub Releases এ TV APK এর নতুন ভার্সন এসেছে।</string>
+    <string name="update_open_releases">রিলিজ পাতা খুলুন</string>
+</resources>

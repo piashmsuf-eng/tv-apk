@@ -78,6 +78,11 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
     var tab by rememberSaveable { mutableStateOf(LiveTab.Online) }
 
     val anyProbed = remember(statuses) { statuses.isNotEmpty() }
+    val sortMode by vm.sortMode.collectAsState()
+    val filterCountry by vm.filterCountry.collectAsState()
+    val filterLanguage by vm.filterLanguage.collectAsState()
+    val lockedGroups by vm.lockedGroups.collectAsState()
+    val unlockedGroups by vm.unlockedGroups.collectAsState()
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopRow(
@@ -125,12 +130,21 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
 
         TabRow(tab = tab, anyProbed = anyProbed, onTabChange = { tab = it })
 
-        val baseGroups: List<Category<Channel>> by remember(channels, query, statuses, tab) {
+        val baseGroups: List<Category<Channel>> by remember(
+            channels, query, statuses, tab, sortMode, filterCountry, filterLanguage,
+            favorites, lockedGroups, unlockedGroups,
+        ) {
             derivedStateOf {
                 vm.channelRepo.groupedByCategory(
                     query = query,
                     hideOffline = anyProbed && tab == LiveTab.Online,
                     onlyOffline = anyProbed && tab == LiveTab.Offline,
+                    sortMode = sortMode,
+                    countryFilter = filterCountry,
+                    languageFilter = filterLanguage,
+                    favoriteIds = favorites,
+                    lockedGroups = lockedGroups,
+                    unlockedGroups = unlockedGroups,
                 )
             }
         }

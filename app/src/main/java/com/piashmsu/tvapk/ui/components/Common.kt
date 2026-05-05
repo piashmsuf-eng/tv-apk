@@ -2,7 +2,9 @@ package com.piashmsu.tvapk.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -181,6 +183,7 @@ fun ChannelTile(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MovieCard(
     title: String,
@@ -188,12 +191,17 @@ fun MovieCard(
     subtitle: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
             .width(160.dp)
             .clip(RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
+            .then(
+                if (onLongPress != null)
+                    Modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress)
+                else Modifier.clickable(onClick = onClick)
+            )
             .padding(6.dp),
     ) {
         Box(
