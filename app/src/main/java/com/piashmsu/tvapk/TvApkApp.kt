@@ -7,6 +7,7 @@ import android.os.Build
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
+import coil.imageLoader
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -59,7 +60,11 @@ class TvApkApp : Application(), ImageLoaderFactory {
                 .distinct()
                 .take(30)
                 .toList()
-            val loader = newImageLoader()
+            // Use the Coil singleton (NOT newImageLoader()) so the
+            // pre-warmed images land in the same MemoryCache + DiskCache
+            // that AsyncImage in the UI reads from. Calling newImageLoader()
+            // would build a separate ImageLoader with its own caches.
+            val loader = this@TvApkApp.imageLoader
             warmList.forEach { url ->
                 loader.enqueue(
                     ImageRequest.Builder(this@TvApkApp)
