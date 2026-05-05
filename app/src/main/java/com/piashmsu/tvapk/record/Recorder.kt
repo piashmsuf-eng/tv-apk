@@ -62,6 +62,19 @@ class Recorder(
         .callTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    /**
+     * Bounded-timeout client used for HLS playlist refreshes and per-segment
+     * downloads. Each fetch is a short-lived request, so a hung server
+     * would otherwise wedge the recording loop forever (coroutine cancel
+     * cannot interrupt OkHttp blocking I/O). The no-timeout `http` client
+     * is reserved for the long, continuous body read in `recordProgressive`.
+     */
+    private val hlsHttp: OkHttpClient = sharedHttp.newBuilder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(45, TimeUnit.SECONDS)
+        .build()
+
     /** Returns absolute or content URI string of the file when finished, or null on failure. */
     fun run(shouldStop: () -> Boolean, onProgressBytes: (Long) -> Unit): String? {
         // Probe the URL once: if Content-Type is HLS or the body starts
@@ -189,14 +202,14 @@ class Recorder(
     }
 
     private fun fetchText(url: String): String {
-        http.newCall(buildRequest(url)).execute().use { resp ->
+        hlsHttp.newCall(buildRequest(url)).execute().use { resp ->
             if (!resp.isSuccessful) error("HTTP ${resp.code}")
             return resp.body?.string().orEmpty()
         }
     }
 
     private fun fetchBytes(url: String, sink: (ByteArray, Int) -> Unit) {
-        http.newCall(buildRequest(url)).execute().use { resp ->
+        hlsHttp.newCall(buildRequest(url)).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             val src = resp.body?.byteStream() ?: return
             val buf = ByteArray(64 * 1024)
