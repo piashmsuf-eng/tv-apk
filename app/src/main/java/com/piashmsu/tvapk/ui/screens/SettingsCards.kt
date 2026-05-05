@@ -100,6 +100,9 @@ internal fun PlaybackAndPlayerCard(vm: AppViewModel) {
     val buf by vm.playerBufferSeconds.collectAsState()
     val auto by vm.autoSkipOffline.collectAsState()
     val speed by vm.playbackSpeed.collectAsState()
+    val boost by vm.audioBoostPercent.collectAsState()
+    val subtitleScale by vm.subtitleScalePercent.collectAsState()
+    val fastStart by vm.fastStart.collectAsState()
     val sortMode by vm.sortMode.collectAsState()
 
     var localExt by remember(ext) { mutableStateOf(ext) }
@@ -136,6 +139,22 @@ internal fun PlaybackAndPlayerCard(vm: AppViewModel) {
         }
 
         Spacer(Modifier.height(10.dp))
+        Text("Audio boost: ${boost}%", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(100, 125, 150, 175, 200).forEach { s ->
+                ChipChoice(label = "${s}%", selected = boost == s) { vm.setAudioBoostPercent(s) }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Text("Subtitle size: ${subtitleScale}%", color = Color.White, style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(75, 100, 125, 150, 200).forEach { s ->
+                ChipChoice(label = "${s}%", selected = subtitleScale == s) { vm.setSubtitleScalePercent(s) }
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Switch(
                 checked = auto,
@@ -144,6 +163,17 @@ internal fun PlaybackAndPlayerCard(vm: AppViewModel) {
             )
             Spacer(Modifier.size(8.dp))
             Text("Auto-skip offline channels on playback error", color = Color.White)
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Switch(
+                checked = fastStart,
+                onCheckedChange = { vm.setFastStart(it) },
+                colors = SwitchDefaults.colors(checkedTrackColor = MaterialTheme.colorScheme.primary),
+            )
+            Spacer(Modifier.size(8.dp))
+            Text("Fast channel start (lower buffer for instant playback)", color = Color.White)
         }
 
         Spacer(Modifier.height(10.dp))

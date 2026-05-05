@@ -74,7 +74,7 @@ class RecordingService : Service() {
             val container = TvApkApp.instance.container
             val recorder = Recorder(
                 context = applicationContext,
-                http = container.http,
+                sharedHttp = container.http,
                 streamUrl = args.streamUrl,
                 title = args.title,
                 userAgent = args.userAgent,

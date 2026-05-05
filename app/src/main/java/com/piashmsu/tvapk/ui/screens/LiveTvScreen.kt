@@ -34,9 +34,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -83,6 +85,23 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
     val filterLanguage by vm.filterLanguage.collectAsState()
     val lockedGroups by vm.lockedGroups.collectAsState()
     val unlockedGroups by vm.unlockedGroups.collectAsState()
+
+    // Tick once per minute so "now playing" titles refresh as programmes end.
+    var nowMinute by remember { mutableLongStateOf(System.currentTimeMillis() / 60_000L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000L)
+            nowMinute = System.currentTimeMillis() / 60_000L
+        }
+    }
+    // Precompute "now playing" map once per epg refresh / minute tick. Avoids
+    // per-tile currentTimeMillis() + linear scan on every recomposition.
+    val nowByTvgId = remember(epg, nowMinute) {
+        val nowTs = nowMinute * 60_000L
+        epg.mapValues { (_, list) ->
+            list.firstOrNull { p -> nowTs in p.start..p.end }?.title
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopRow(
@@ -231,8 +250,6 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             items(cat.items, key = { it.id }) { ch ->
-                                val nowPlaying = epg[ch.tvgId.orEmpty()].orEmpty()
-                                    .firstOrNull { now -> System.currentTimeMillis() in now.start..now.end }
                                 val st = statuses[ch.id]
                                 val statusColor = when (st) {
                                     ChannelStatus.Online -> Color(0xFF22C55E)
@@ -249,7 +266,7 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
                                     logo = ch.logo,
                                     group = ch.country ?: ch.language ?: ch.group,
                                     isFavorite = ch.id in favorites,
-                                    nowPlayingTitle = nowPlaying?.title,
+                                    nowPlayingTitle = nowByTvgId[ch.tvgId.orEmpty()],
                                     onClick = { onChannelTap(ch) },
                                     onFavorite = { vm.toggleFavorite(ch.id) },
                                     statusColor = statusColor,

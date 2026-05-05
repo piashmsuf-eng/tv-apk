@@ -8,12 +8,14 @@ import android.os.Environment
 import android.provider.MediaStore
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 /**
  * Low-level recording primitive used by [RecordingService].
@@ -31,30 +33,93 @@ import java.util.Locale
  */
 class Recorder(
     private val context: Context,
-    private val http: OkHttpClient,
+    sharedHttp: OkHttpClient,
     private val streamUrl: String,
     private val title: String,
     private val userAgent: String?,
     private val referer: String?,
     private val extraHeaders: Map<String, String>,
 ) {
+    /**
+     * The shared client's 20 s readTimeout would interrupt long progressive
+     * stream reads. Derive a no-timeout client for the actual recording that
+     * still inherits the connection pool, cache, and HTTP/2 protocol setup.
+     */
+    private val http: OkHttpClient = sharedHttp.newBuilder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+
+    /**
+     * Bounded-timeout client used only for the one-shot HLS probe in
+     * [detectHls]. We must NOT use the no-timeout `http` client here:
+     * if the server accepts the TCP connection but never sends headers
+     * or body, OkHttp's blocking I/O cannot be interrupted by coroutine
+     * cancellation and the recording thread would wedge forever.
+     */
+    private val probeHttp: OkHttpClient = sharedHttp.newBuilder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(20, TimeUnit.SECONDS)
+        .build()
+
+    /**
+     * Bounded-timeout client used for HLS playlist refreshes and per-segment
+     * downloads. Each fetch is a short-lived request, so a hung server
+     * would otherwise wedge the recording loop forever (coroutine cancel
+     * cannot interrupt OkHttp blocking I/O). The no-timeout `http` client
+     * is reserved for the long, continuous body read in `recordProgressive`.
+     */
+    private val hlsHttp: OkHttpClient = sharedHttp.newBuilder()
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .callTimeout(45, TimeUnit.SECONDS)
+        .build()
+
     /** Returns absolute or content URI string of the file when finished, or null on failure. */
     fun run(shouldStop: () -> Boolean, onProgressBytes: (Long) -> Unit): String? {
-        val isHls = streamUrl.contains(".m3u8", ignoreCase = true) ||
-            streamUrl.contains("application/vnd.apple.mpegurl", ignoreCase = true)
+        // Probe the URL once: if Content-Type is HLS or the body starts
+        // with #EXTM3U, treat it as HLS regardless of file extension.
+        // Many IPTV providers serve HLS without a `.m3u8` suffix.
+        val isHls = detectHls()
         val ext = if (isHls) "ts" else inferExtension(streamUrl)
         val fileName = buildFileName(title, ext)
 
         val (outStream, displayPath) = openOutput(fileName, ext) ?: return null
         return try {
-            outStream.use { os ->
+            BufferedOutputStream(outStream, 256 * 1024).use { os ->
                 if (isHls) recordHls(os, shouldStop, onProgressBytes)
                 else recordProgressive(os, shouldStop, onProgressBytes)
+                os.flush()
             }
             displayPath
         } catch (t: Throwable) {
             null
         }
+    }
+
+    private fun detectHls(): Boolean {
+        val urlMatch = streamUrl.contains(".m3u8", ignoreCase = true) ||
+            streamUrl.contains("application/vnd.apple.mpegurl", ignoreCase = true) ||
+            streamUrl.contains("application/x-mpegurl", ignoreCase = true)
+        if (urlMatch) return true
+        return runCatching {
+            probeHttp.newCall(buildRequest(streamUrl)).execute().use { resp ->
+                val contentType = resp.header("Content-Type").orEmpty().lowercase()
+                if (contentType.contains("mpegurl") || contentType.contains("vnd.apple")) {
+                    return@use true
+                }
+                // Peek first 64 bytes — HLS playlists begin with #EXTM3U
+                val src = resp.body?.byteStream() ?: return@use false
+                val head = ByteArray(64)
+                var read = 0
+                while (read < head.size) {
+                    val n = src.read(head, read, head.size - read)
+                    if (n <= 0) break
+                    read += n
+                }
+                String(head, 0, read, Charsets.US_ASCII).startsWith("#EXTM3U")
+            }
+        }.getOrDefault(false)
     }
 
     private fun recordHls(
@@ -137,14 +202,14 @@ class Recorder(
     }
 
     private fun fetchText(url: String): String {
-        http.newCall(buildRequest(url)).execute().use { resp ->
+        hlsHttp.newCall(buildRequest(url)).execute().use { resp ->
             if (!resp.isSuccessful) error("HTTP ${resp.code}")
             return resp.body?.string().orEmpty()
         }
     }
 
     private fun fetchBytes(url: String, sink: (ByteArray, Int) -> Unit) {
-        http.newCall(buildRequest(url)).execute().use { resp ->
+        hlsHttp.newCall(buildRequest(url)).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
             val src = resp.body?.byteStream() ?: return
             val buf = ByteArray(64 * 1024)

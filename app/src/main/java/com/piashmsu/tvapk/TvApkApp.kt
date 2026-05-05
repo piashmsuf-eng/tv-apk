@@ -7,7 +7,10 @@ import android.os.Build
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
+import coil.imageLoader
 import coil.memory.MemoryCache
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import com.piashmsu.tvapk.data.AppContainer
 import com.piashmsu.tvapk.util.CrashReporter
 import com.piashmsu.tvapk.util.LocaleHelper
@@ -15,6 +18,7 @@ import com.piashmsu.tvapk.work.PlaylistRefreshWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -42,6 +46,33 @@ class TvApkApp : Application(), ImageLoaderFactory {
 
             if (container.prefs.crashReporter.first()) {
                 CrashReporter.install(this@TvApkApp)
+            }
+
+            // Pre-warm channel logos: after a short delay, ask Coil to
+            // download (in parallel) the first ~30 channel logos. This
+            // means the Live TV grid renders immediately on first open,
+            // logos already cached, no per-tile network round-trip.
+            delay(2_000)
+            val warmList = container.channelRepo.channels.first()
+                .asSequence()
+                .mapNotNull { it.logo }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .take(30)
+                .toList()
+            // Use the Coil singleton (NOT newImageLoader()) so the
+            // pre-warmed images land in the same MemoryCache + DiskCache
+            // that AsyncImage in the UI reads from. Calling newImageLoader()
+            // would build a separate ImageLoader with its own caches.
+            val loader = this@TvApkApp.imageLoader
+            warmList.forEach { url ->
+                loader.enqueue(
+                    ImageRequest.Builder(this@TvApkApp)
+                        .data(url)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .build()
+                )
             }
         }
     }
@@ -79,20 +110,28 @@ class TvApkApp : Application(), ImageLoaderFactory {
     }
 
     override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
-        .crossfade(true)
+        .crossfade(120)
         .okHttpClient { container.http }
         .memoryCache {
             MemoryCache.Builder(this)
-                .maxSizePercent(0.20)
+                // Use up to 25% of available app heap for image bitmaps —
+                // bigger memory cache = far fewer disk reads when scrolling
+                // long channel lists.
+                .maxSizePercent(0.25)
                 .build()
         }
         .diskCache {
             DiskCache.Builder()
                 .directory(cacheDir.resolve("image_cache"))
-                .maxSizeBytes(64L * 1024 * 1024)
+                // 128 MB persistent disk cache for logos + posters; survives
+                // process death so subsequent launches feel instant.
+                .maxSizeBytes(128L * 1024 * 1024)
                 .build()
         }
         .respectCacheHeaders(false)
+        // Decoders run in parallel (default is 4 — bumped to 8 for faster
+        // poster grid + channel logo decode).
+        .bitmapFactoryMaxParallelism(8)
         .build()
 
     companion object {

@@ -52,6 +52,9 @@ class AppPrefs(private val context: Context) {
         val PLAYER_BUFFER_SECONDS = intPreferencesKey("player_buffer_seconds")
         val AUTO_SKIP_OFFLINE = booleanPreferencesKey("auto_skip_offline")
         val PLAYBACK_SPEED = stringPreferencesKey("playback_speed_default")
+        val AUDIO_BOOST_PERCENT = intPreferencesKey("audio_boost_percent")
+        val SUBTITLE_SCALE = intPreferencesKey("subtitle_scale_percent")
+        val FAST_START = booleanPreferencesKey("fast_start_enabled")
 
         val SORT_MODE = stringPreferencesKey("live_sort_mode")
         val FILTER_COUNTRY = stringPreferencesKey("live_filter_country")
@@ -167,6 +170,21 @@ class AppPrefs(private val context: Context) {
         it[Keys.PLAYBACK_SPEED]?.toFloatOrNull() ?: 1f
     }
 
+    /** Audio boost in percent. 100 = unchanged, up to 200 = +20 dB roughly. */
+    val audioBoostPercent: Flow<Int> = context.dataStore.data.map {
+        (it[Keys.AUDIO_BOOST_PERCENT] ?: 100).coerceIn(100, 200)
+    }
+
+    /** Subtitle text scale in percent. 100 = system default. */
+    val subtitleScalePercent: Flow<Int> = context.dataStore.data.map {
+        (it[Keys.SUBTITLE_SCALE] ?: 100).coerceIn(50, 200)
+    }
+
+    /** Master toggle for low-latency / fast-start playback tuning. */
+    val fastStart: Flow<Boolean> = context.dataStore.data.map {
+        it[Keys.FAST_START] != false
+    }
+
     val sortMode: Flow<SortMode> = context.dataStore.data.map {
         SortMode.fromKey(it[Keys.SORT_MODE])
     }
@@ -273,6 +291,18 @@ class AppPrefs(private val context: Context) {
 
     suspend fun setPlaybackSpeed(speed: Float) =
         update(Keys.PLAYBACK_SPEED, speed.toString())
+
+    suspend fun setAudioBoostPercent(value: Int) {
+        context.dataStore.edit { it[Keys.AUDIO_BOOST_PERCENT] = value.coerceIn(100, 200) }
+    }
+
+    suspend fun setSubtitleScalePercent(value: Int) {
+        context.dataStore.edit { it[Keys.SUBTITLE_SCALE] = value.coerceIn(50, 200) }
+    }
+
+    suspend fun setFastStart(value: Boolean) {
+        context.dataStore.edit { it[Keys.FAST_START] = value }
+    }
 
     suspend fun setSortMode(mode: SortMode) =
         update(Keys.SORT_MODE, mode.key)

@@ -1,13 +1,6 @@
 package com.piashmsu.tvapk.ui
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -32,7 +25,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -108,27 +100,23 @@ fun TvApkRoot(isInPipState: MutableState<Boolean> = remember { mutableStateOf(fa
         ) {
             NavHost(navController = nav, startDestination = Tab.Home.route) {
                 composable(Tab.Home.route) {
-                    AnimatedTabContent {
-                        HomeScreen(
-                            onChannelTap = openChannel,
-                            onMovieTap = openMovie,
-                            onTabRequest = { route -> nav.tabNavigate(route) },
-                        )
-                    }
+                    HomeScreen(
+                        onChannelTap = openChannel,
+                        onMovieTap = openMovie,
+                        onTabRequest = { route -> nav.tabNavigate(route) },
+                    )
                 }
                 composable(Tab.Live.route) {
-                    AnimatedTabContent { LiveTvScreen(onChannelTap = openChannel) }
+                    LiveTvScreen(onChannelTap = openChannel)
                 }
                 composable(Tab.Movies.route) {
-                    AnimatedTabContent { MoviesScreen(onMovieTap = openMovie) }
+                    MoviesScreen(onMovieTap = openMovie)
                 }
                 composable(Tab.Search.route) {
-                    AnimatedTabContent {
-                        SearchScreen(onChannelTap = openChannel, onMovieTap = openMovie)
-                    }
+                    SearchScreen(onChannelTap = openChannel, onMovieTap = openMovie)
                 }
                 composable(Tab.Settings.route) {
-                    AnimatedTabContent { SettingsScreen() }
+                    SettingsScreen()
                 }
                 composable("player") {
                     PlayerScreen(
@@ -138,27 +126,6 @@ fun TvApkRoot(isInPipState: MutableState<Boolean> = remember { mutableStateOf(fa
                 }
             }
         }
-    }
-}
-
-/**
- * Lightweight cross-tab fade. We don't slide between tabs because every
- * screen owns its own scroll state — sliding feels janky once a tab is
- * deep-scrolled. A 220 ms fade is enough vibe.
- */
-@Composable
-private fun AnimatedTabContent(content: @Composable () -> Unit) {
-    val show = remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { show.value = true }
-    AnimatedContent(
-        targetState = show.value,
-        label = "tab",
-        transitionSpec = {
-            (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 12 })
-                .togetherWith(fadeOut(tween(140)) + slideOutHorizontally(tween(140)) { -it / 12 })
-        },
-    ) { visible ->
-        if (visible) Box { content() }
     }
 }
 
