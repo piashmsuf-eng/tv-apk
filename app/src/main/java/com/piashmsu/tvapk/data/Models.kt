@@ -1,5 +1,7 @@
 package com.piashmsu.tvapk.data
 
+import androidx.compose.runtime.Immutable
+
 /**
  * A single live-TV channel parsed from an M3U playlist.
  *
@@ -13,6 +15,7 @@ package com.piashmsu.tvapk.data
  * IPTV catch-up / time-shift attributes — when present, the player shows a
  * timeline that lets the user rewind into the last N days of programming.
  */
+@Immutable
 data class Channel(
     val id: String,
     val name: String,
@@ -35,6 +38,7 @@ data class Channel(
 }
 
 /** A movie or video-on-demand entry. */
+@Immutable
 data class Movie(
     val id: String,
     val title: String,
@@ -50,6 +54,7 @@ data class Movie(
 )
 
 /** UI-friendly grouping of items by category title. */
+@Immutable
 data class Category<T>(
     val title: String,
     val items: List<T>,
@@ -65,6 +70,7 @@ data class Category<T>(
  * `userAgent` / `referer` apply to every channel from this source unless
  * the channel itself specifies an override via `#EXTVLCOPT:` / `#KODIPROP:`.
  */
+@Immutable
 data class PlaylistSource(
     val id: String,
     val name: String,
@@ -76,6 +82,7 @@ data class PlaylistSource(
 )
 
 /** A single EPG programme entry parsed from XMLTV. */
+@Immutable
 data class EpgProgramme(
     val channelId: String,
     val title: String,
@@ -88,6 +95,7 @@ data class EpgProgramme(
 }
 
 /** A persisted "recently watched" entry. */
+@Immutable
 data class RecentChannel(
     val channelId: String,
     val name: String,

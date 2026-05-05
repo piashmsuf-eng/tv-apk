@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.media.AudioManager
+import android.media.audiofx.LoudnessEnhancer
 import android.provider.Settings
 import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
@@ -50,6 +51,7 @@ import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalIconButton
@@ -79,6 +81,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import coil.compose.AsyncImage
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -165,13 +168,26 @@ fun PlayerScreen(onBack: () -> Unit, isInPip: Boolean = false) {
 
     val bufferSeconds by vm.playerBufferSeconds.collectAsState()
     val savedSpeed by vm.playbackSpeed.collectAsState()
+    val audioBoostPercent by vm.audioBoostPercent.collectAsState()
+    val subtitleScalePercent by vm.subtitleScalePercent.collectAsState()
+    val fastStart by vm.fastStart.collectAsState()
     val autoSkipOffline by vm.autoSkipOffline.collectAsState()
     val externalPkg by vm.externalPlayerPkg.collectAsState()
     val watchPositions by vm.watchPositions.collectAsState()
     val tmdb = vm.container().tmdb
 
+    val httpClient = vm.container().http
     val player = remember(current) {
-        buildPlayerForUrl(context, current.streamUrl, ua, referer, headers, bufferSeconds).apply {
+        buildPlayerForUrl(
+            context = context,
+            url = current.streamUrl,
+            userAgent = ua,
+            referer = referer,
+            extraHeaders = headers,
+            bufferSeconds = bufferSeconds,
+            httpClient = httpClient,
+            fastStart = fastStart,
+        ).apply {
             setMediaItem(MediaItem.fromUri(current.streamUrl))
             playbackParameters = PlaybackParameters(savedSpeed)
             prepare()
@@ -179,6 +195,7 @@ fun PlayerScreen(onBack: () -> Unit, isInPip: Boolean = false) {
         }
     }
     var isPlaying by remember { mutableStateOf(true) }
+    var isBuffering by remember { mutableStateOf(true) }
     var controlsVisible by remember { mutableStateOf(true) }
     var lastInteractionAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var aspectMode by remember { mutableStateOf(AspectMode.Fit) }
@@ -292,6 +309,28 @@ fun PlayerScreen(onBack: () -> Unit, isInPip: Boolean = false) {
 
     if (!isInPip) EnterImmersive()
 
+    // LoudnessEnhancer wraps the player's audio session and adds gain in
+    // millibels (1 mB = 0.01 dB). 100% = +0 dB, 200% ≈ +20 dB. Useful for
+    // streams with quiet audio mixes.
+    DisposableEffect(player, audioBoostPercent) {
+        val sessionId = player.audioSessionId
+        val enhancer = if (sessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET && audioBoostPercent > 100) {
+            runCatching {
+                LoudnessEnhancer(sessionId).apply {
+                    val gainMb = ((audioBoostPercent - 100) * 20).coerceIn(0, 2000)
+                    setTargetGain(gainMb)
+                    enabled = true
+                }
+            }.getOrNull()
+        } else null
+        onDispose {
+            enhancer?.runCatching {
+                enabled = false
+                release()
+            }
+        }
+    }
+
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
@@ -300,6 +339,10 @@ fun PlayerScreen(onBack: () -> Unit, isInPip: Boolean = false) {
                     controlsVisible = true
                     lastInteractionAt = System.currentTimeMillis()
                 }
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+                isBuffering = state == Player.STATE_BUFFERING
             }
 
             override fun onTracksChanged(t: Tracks) {
@@ -428,12 +471,68 @@ fun PlayerScreen(onBack: () -> Unit, isInPip: Boolean = false) {
                     useController = false
                     setShutterBackgroundColor(android.graphics.Color.BLACK)
                     resizeMode = aspectMode.mode
+                    subtitleView?.setFractionalTextSize(
+                        androidx.media3.ui.SubtitleView.DEFAULT_TEXT_SIZE_FRACTION *
+                            (subtitleScalePercent / 100f),
+                    )
                 }
             },
             update = { view ->
                 view.resizeMode = aspectMode.mode
+                view.subtitleView?.setFractionalTextSize(
+                    androidx.media3.ui.SubtitleView.DEFAULT_TEXT_SIZE_FRACTION *
+                        (subtitleScalePercent / 100f),
+                )
             },
         )
+
+        // Buffering overlay: shown when ExoPlayer is in STATE_BUFFERING.
+        // Replaces the harsh "black screen for 2 seconds" with a soft
+        // backdrop (channel logo or movie poster, dimmed) + spinner +
+        // title hint, so users know the stream is loading and not dead.
+        if (isBuffering && !isInPip) {
+            val bgImage = when (current) {
+                is PlaybackTarget.LiveChannel -> current.channel.logo
+                is PlaybackTarget.VideoOnDemand -> current.movie.backdrop ?: current.movie.poster
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xCC0B0E22)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (!bgImage.isNullOrBlank()) {
+                    AsyncImage(
+                        model = bgImage,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = 0.25f },
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(56.dp),
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        current.title,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "Loading stream…",
+                        color = Color(0xCCBFC4D6),
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+            }
+        }
 
         seekIndicator?.let { (forward, _) ->
             Box(

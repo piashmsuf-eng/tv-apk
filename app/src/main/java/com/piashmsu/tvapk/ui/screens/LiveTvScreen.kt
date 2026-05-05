@@ -34,9 +34,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -84,10 +86,18 @@ fun LiveTvScreen(onChannelTap: (Channel) -> Unit) {
     val lockedGroups by vm.lockedGroups.collectAsState()
     val unlockedGroups by vm.unlockedGroups.collectAsState()
 
-    // Precompute "now playing" map once per epg refresh. Avoids per-tile
-    // currentTimeMillis() + linear scan on every recomposition.
-    val nowByTvgId = remember(epg) {
-        val nowTs = System.currentTimeMillis()
+    // Tick once per minute so "now playing" titles refresh as programmes end.
+    var nowMinute by remember { mutableLongStateOf(System.currentTimeMillis() / 60_000L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000L)
+            nowMinute = System.currentTimeMillis() / 60_000L
+        }
+    }
+    // Precompute "now playing" map once per epg refresh / minute tick. Avoids
+    // per-tile currentTimeMillis() + linear scan on every recomposition.
+    val nowByTvgId = remember(epg, nowMinute) {
+        val nowTs = nowMinute * 60_000L
         epg.mapValues { (_, list) ->
             list.firstOrNull { p -> nowTs in p.start..p.end }?.title
         }

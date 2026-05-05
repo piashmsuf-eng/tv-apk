@@ -29,9 +29,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,8 +75,16 @@ fun HomeScreen(
     }
     val isOnboarding = playlistSources.isEmpty() && movieUrl.isBlank()
 
-    val nowByTvgId = remember(epg) {
-        val nowTs = System.currentTimeMillis()
+    // Tick once per minute so "now playing" titles refresh as programmes end.
+    var nowMinute by remember { mutableLongStateOf(System.currentTimeMillis() / 60_000L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60_000L)
+            nowMinute = System.currentTimeMillis() / 60_000L
+        }
+    }
+    val nowByTvgId = remember(epg, nowMinute) {
+        val nowTs = nowMinute * 60_000L
         epg.mapValues { (_, list) ->
             list.firstOrNull { p -> nowTs in p.start..p.end }?.title
         }

@@ -97,6 +97,12 @@ class AppViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val playbackSpeed = prefs.playbackSpeed
         .stateIn(viewModelScope, SharingStarted.Eagerly, 1f)
+    val audioBoostPercent = prefs.audioBoostPercent
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 100)
+    val subtitleScalePercent = prefs.subtitleScalePercent
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 100)
+    val fastStart = prefs.fastStart
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     val tmdbKey = prefs.tmdbKey
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
@@ -247,6 +253,15 @@ class AppViewModel(
     }
     fun setPlaybackSpeed(speed: Float) {
         viewModelScope.launch { prefs.setPlaybackSpeed(speed) }
+    }
+    fun setAudioBoostPercent(value: Int) {
+        viewModelScope.launch { prefs.setAudioBoostPercent(value) }
+    }
+    fun setSubtitleScalePercent(value: Int) {
+        viewModelScope.launch { prefs.setSubtitleScalePercent(value) }
+    }
+    fun setFastStart(value: Boolean) {
+        viewModelScope.launch { prefs.setFastStart(value) }
     }
 
     fun saveWatchPosition(streamUrl: String, positionMs: Long, durationMs: Long) {

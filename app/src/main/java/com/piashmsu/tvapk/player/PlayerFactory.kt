@@ -1,13 +1,14 @@
 package com.piashmsu.tvapk.player
 
 import android.content.Context
-import androidx.media3.common.C
 import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.HttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import okhttp3.OkHttpClient
 
 /**
  * Builds an ExoPlayer instance configured to handle the dominant IPTV stream
@@ -17,9 +18,18 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
  * source so DRM-free streams that require a specific User-Agent / Referer
  * (a common protection against hot-linking) play correctly.
  *
- * `bufferSeconds` is the user-configurable target buffer in seconds. The
- * minimum playback buffer is bounded by Media3 to ~500 ms so we just clamp
- * the input to a sensible 5–120 s range.
+ * `bufferSeconds` is the user-configurable target buffer in seconds.
+ *
+ * `httpClient` is an optional shared OkHttp client. Reusing the app-wide
+ * client gives us HTTP/2 multiplexing, persistent connections, and the
+ * shared 64 MB disk cache configured in [com.piashmsu.tvapk.data.AppContainer].
+ *
+ * Channel start latency is tuned for IPTV / live HLS:
+ *   - bufferForPlaybackMs = 800 ms (default 2500 ms) — start playing as
+ *     soon as ~800 ms is buffered instead of waiting 2.5 s of black.
+ *   - bufferForPlaybackAfterRebufferMs = 2000 ms — quicker resume after
+ *     a stall.
+ *   - minBufferMs = 5 s, maxBufferMs scales with user setting (5–120 s).
  */
 fun buildPlayerForUrl(
     context: Context,
@@ -28,15 +38,22 @@ fun buildPlayerForUrl(
     referer: String? = null,
     extraHeaders: Map<String, String> = emptyMap(),
     bufferSeconds: Int = 30,
+    httpClient: OkHttpClient? = null,
+    fastStart: Boolean = true,
 ): ExoPlayer {
     @Suppress("UNUSED_VARIABLE")
     val targetUrl = url
 
-    val httpFactory = DefaultHttpDataSource.Factory()
-        .setUserAgent(userAgent ?: "TVApk/1.0 (Android)")
-        .setConnectTimeoutMs(15_000)
-        .setReadTimeoutMs(30_000)
-        .setAllowCrossProtocolRedirects(true)
+    val httpFactory: HttpDataSource.Factory = if (httpClient != null) {
+        OkHttpDataSource.Factory(httpClient)
+            .setUserAgent(userAgent ?: "TVApk/1.0 (Android)")
+    } else {
+        androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setUserAgent(userAgent ?: "TVApk/1.0 (Android)")
+            .setConnectTimeoutMs(10_000)
+            .setReadTimeoutMs(20_000)
+            .setAllowCrossProtocolRedirects(true)
+    }
 
     val headers = buildMap {
         if (!referer.isNullOrBlank()) put("Referer", referer)
@@ -47,14 +64,16 @@ fun buildPlayerForUrl(
     val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
     val factory = DefaultMediaSourceFactory(dataSourceFactory)
 
-    val target = bufferSeconds.coerceIn(5, 120) * 1_000
+    val targetMaxMs = bufferSeconds.coerceIn(5, 120) * 1_000
+    val minBufferMs = 5_000
+        .coerceAtLeast(DefaultLoadControl.DEFAULT_MIN_BUFFER_MS / 4)
+    val maxBufferMs = targetMaxMs.coerceAtLeast(minBufferMs)
+    // Fast start: kick off as soon as ~800 ms is buffered; otherwise the
+    // Media3 default of 2500 ms applies.
+    val playbackStartMs = if (fastStart) 800 else DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS
+    val playbackResumeMs = if (fastStart) 2_000 else DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS
     val loadControl = DefaultLoadControl.Builder()
-        .setBufferDurationsMs(
-            (target / 2).coerceAtLeast(DefaultLoadControl.DEFAULT_MIN_BUFFER_MS),
-            target.coerceAtLeast(DefaultLoadControl.DEFAULT_MAX_BUFFER_MS),
-            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,
-            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS,
-        )
+        .setBufferDurationsMs(minBufferMs, maxBufferMs, playbackStartMs, playbackResumeMs)
         .setPrioritizeTimeOverSizeThresholds(true)
         .build()
 
@@ -64,7 +83,6 @@ fun buildPlayerForUrl(
                 .setPreferredAudioLanguage(null)
                 .setPreferredTextLanguage(null)
                 .setSelectUndeterminedTextLanguage(false)
-                .setRendererDisabled(C.TRACK_TYPE_TEXT, true)
         )
     }
 
