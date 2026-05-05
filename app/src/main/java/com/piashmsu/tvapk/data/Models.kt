@@ -107,3 +107,63 @@ enum class RefreshInterval(val hours: Int, val label: String) {
         fun fromHours(h: Int): RefreshInterval = values().firstOrNull { it.hours == h } ?: Off
     }
 }
+
+/**
+ * Color palette the user can pick in Settings. The Compose theme reads this
+ * value and rebuilds the [androidx.compose.material3.ColorScheme] +
+ * gradient background accordingly.
+ */
+enum class ThemePalette(val key: String, val label: String) {
+    DefaultVibe("default", "Default Vibe"),
+    AmoledBlack("amoled", "AMOLED Black"),
+    SunsetOrange("sunset", "Sunset Orange"),
+    OceanBlue("ocean", "Ocean Blue");
+
+    companion object {
+        fun fromKey(k: String?): ThemePalette =
+            values().firstOrNull { it.key == k } ?: DefaultVibe
+    }
+}
+
+/**
+ * Launcher icon variant. Each variant maps to an `<activity-alias>` in the
+ * manifest; the [com.piashmsu.tvapk.theme.LauncherIconManager] enables the
+ * chosen alias and disables the others.
+ */
+enum class LauncherVariant(val key: String, val aliasName: String, val label: String) {
+    Default("default", "com.piashmsu.tvapk.MainActivity", "Default Vibe"),
+    Eid("eid", "com.piashmsu.tvapk.LauncherEid", "Eid"),
+    Boishakh("boishakh", "com.piashmsu.tvapk.LauncherBoishakh", "Pohela Boishakh"),
+    Bijoy("bijoy", "com.piashmsu.tvapk.LauncherBijoy", "Bijoy Dibos");
+
+    companion object {
+        fun fromKey(k: String?): LauncherVariant =
+            values().firstOrNull { it.key == k } ?: Default
+    }
+}
+
+/** UI language preference (system, English, Bangla). */
+enum class UiLanguage(val key: String, val tag: String, val label: String) {
+    System("system", "", "Follow system"),
+    English("en", "en", "English"),
+    Bangla("bn", "bn", "বাংলা");
+
+    companion object {
+        fun fromKey(k: String?): UiLanguage =
+            values().firstOrNull { it.key == k } ?: System
+    }
+}
+
+/** How the Live-TV list orders channels within / across groups. */
+enum class SortMode(val key: String, val label: String) {
+    Default("default", "Default"),
+    Alphabetical("alpha", "Alphabetical"),
+    ByCountry("country", "By country"),
+    OnlineFirst("online", "Online first"),
+    FavoritesFirst("favorites", "Favorites first");
+
+    companion object {
+        fun fromKey(k: String?): SortMode =
+            values().firstOrNull { it.key == k } ?: Default
+    }
+}

@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Sun rays + tiny rickshaw wheel for Pohela Boishakh -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,32 h48 a4,4 0 0 1 4,4 v32 a4,4 0 0 1 -4,4 h-48 a4,4 0 0 1 -4,-4 v-32 a4,4 0 0 1 4,-4 z M30,38 v26 h48 v-26 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M44,76 h20 v3 h-20 z" />
+    <path
+        android:fillColor="#F2A93B"
+        android:pathData="M54,51 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
+    <path
+        android:strokeColor="#F2A93B"
+        android:strokeWidth="1.6"
+        android:pathData="M54,40 v3 M54,59 v3 M43,51 h3 M62,51 h3 M46,43 l2.1,2.1 M60,43 l-2.1,2.1 M46,59 l2.1,-2.1 M60,59 l-2.1,-2.1" />
+</vector>

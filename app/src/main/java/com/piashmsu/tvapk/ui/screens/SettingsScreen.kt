@@ -228,9 +228,17 @@ fun SettingsScreen() {
             }
         }
 
+        item { ThemeAndLocaleCard(vm) }
+        item { PlaybackAndPlayerCard(vm) }
+        item { SecurityCard(vm) }
+        item { IntegrationsCard(vm) }
+        item { NotificationsCard(vm) }
+        item { BackupCard(vm) }
+        item { UpdateCard(vm) }
+
         item {
             Card("About") {
-                AboutRow("App", "TV APK • v3.0 Vibe")
+                AboutRow("App", "TV APK • v5.0 mega-update")
                 AboutRow("Developer", stringResource(R.string.developer_name))
                 Row(
                     modifier = Modifier
@@ -515,7 +523,7 @@ private fun TopHeader() {
 }
 
 @Composable
-private fun Card(title: String, content: @Composable () -> Unit) {
+internal fun Card(title: String, content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -543,7 +551,7 @@ private fun Card(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun PrimaryButton(text: String, onClick: () -> Unit) {
+internal fun PrimaryButton(text: String, onClick: () -> Unit) {
     Button(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
