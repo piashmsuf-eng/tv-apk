@@ -71,7 +71,7 @@ fun TvApkTheme(
     content: @Composable () -> Unit,
 ) {
     val colors = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && darkTheme -> {
             val context = LocalContext.current
             dynamicDarkColorScheme(context)
         }
